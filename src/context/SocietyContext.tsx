@@ -113,6 +113,9 @@ interface SocietyContextType {
 
 const SocietyContext = createContext<SocietyContextType | undefined>(undefined);
 
+import building3dImg from '../assets/images/building_3d_view_1780387092893.png';
+import constructionImg from '../assets/images/construction_progress_1780387114013.png';
+
 const DEFAULT_CONFIG: SocietyConfig = {
   name: "Astha Twin Towers",
   address: "Khetasar, Cumilla, Bangladesh",
@@ -128,13 +131,13 @@ const DEFAULT_CONFIG: SocietyConfig = {
   whatsappNo: "+8801711223344",
   
   // Landing/Login default values
-  building3dImg: "/src/assets/images/building_3d_view_1780387092893.png",
+  building3dImg: building3dImg,
   building3dTitleEn: "Astha Twin Towers - Architectural Highlights",
   building3dTitleBn: "আস্থা টুইন টাওয়ার্স - স্থাপত্য মানদণ্ড",
   building3dDescEn: "Astha Twin Towers is Cumilla’s pioneer dual-tower premium luxury high-rise condominium complex located in Khetasar. Architected with high-strength triple glass structural facade, active safety protocols, earthquake resistance up to 7.8 Richter, 3 luxury spacious capsule elevators, and eco-friendly landscaping.",
   building3dDescBn: "এটি খেতাসার, কুমিল্লায় নির্মিতব্য অঞ্চলের প্রথম দ্বৈত টাওয়ার বিশিষ্ট অভিজাত বহুতল আবাসন কমপ্লেক্স। উন্নতমানের গ্লাস ফেসাড, প্রতি ফ্লোরে ডাবল ভেন্টিলেশন, প্রতিটি ফ্ল্যাটে সবুজ বাউন্ডারি গার্ডেন, সর্বোচ্চ ভূমিকম্প প্রতিরোধক সহনশীলতা সম্পন্ন আন্তর্জাতিক মানের নির্মাণ ফর্মুলায় করা এই ভবনে থাকবে ৩টি ক্যাপসুল লিফট।",
   
-  constructionImg: "/src/assets/images/construction_progress_1780387114013.png",
+  constructionImg: constructionImg,
   constructionPercent: 85,
   constructionDescEn: "Sub-grade foundation and pile capping have been 100% completed. Currently, structural concrete slab castings of Tower 1 is completed up to the 13th tier, and Tower 2 is completed up to the 11th tier. Lab test compression checks are generated weekly to ensure ultimate reliability.",
   constructionDescBn: "মাটির পাইলিং এবং ফুটিং বেইসের কাজ ১০০% সুরক্ষায় সমাপ্ত হয়েছে। ইতিমধ্যে প্রথম টাওয়ারের ১৩ম তলা এবং দ্বিতীয় টাওয়ারের ১১ম তলার ছাদ ঢালাইয়ের কাজ সম্পন্ন হয়েছে। গুণমান যাচাইকারী টিম দ্বারা প্রতি সপ্তাহে কংক্রিট পিউরিফিকেশন পরীক্ষা সম্পন্ন হয়।",
@@ -511,6 +514,41 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     loadState('notifications', DEFAULT_NOTIFICATIONS, setNotifications);
     loadState('constructionPhases', DEFAULT_CONSTRUCTION_PHASES, setConstructionPhases);
     loadUserAccountsState();
+
+    // LIVE DATABASE SYNC
+    const startLiveSync = () => {
+      import('../utils/firebase').then(({ db }) => {
+        import('firebase/firestore').then(({ doc, onSnapshot }) => {
+          const keysMap: Record<string, Function> = {
+            config: setConfig,
+            members: setMembers,
+            flats: setFlats,
+            payments: setPayments,
+            expenses: setExpenses,
+            notices: setNotices,
+            visitors: setVisitors,
+            complaints: setComplaints,
+            staff: setStaff,
+            activityLogs: setActivityLogs,
+            notifications: setNotifications,
+            user_accounts: setUserAccounts,
+            constructionPhases: setConstructionPhases,
+          };
+          
+          Object.keys(keysMap).forEach(key => {
+            onSnapshot(doc(db, 'live_data', key), (docSnap) => {
+              if (docSnap.exists() && docSnap.data().data) {
+                const data = docSnap.data().data;
+                keysMap[key](data);
+                localStorage.setItem(`as_${key}`, JSON.stringify(data));
+              }
+            });
+          });
+        });
+      }).catch(e => console.error("Firebase sync setup failed", e));
+    };
+
+    startLiveSync();
   }, []);
 
   // Update session & configuration changes
@@ -558,6 +596,17 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Persistors
   const saveToStorage = (key: string, data: any) => {
     localStorage.setItem(`as_${key}`, JSON.stringify(data));
+    
+    // Push the changes to Firebase Live Database asynchronously
+    try {
+      import('../utils/firebase').then(({ db }) => {
+        import('firebase/firestore').then(({ doc, setDoc }) => {
+          setDoc(doc(db, 'live_data', key), { data });
+        });
+      });
+    } catch (error) {
+      console.warn("Live DB sync failed for ", key);
+    }
   };
 
   // Auth Operations

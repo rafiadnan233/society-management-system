@@ -4,6 +4,8 @@
  */
 
 import React, { useState } from 'react';
+import building3dImg from '../assets/images/building_3d_view_1780387092893.png';
+import constructionImg from '../assets/images/construction_progress_1780387114013.png';
 import { useSociety } from '../context/SocietyContext';
 import { translations } from '../utils/translations';
 import { Notice } from '../types';
@@ -477,7 +479,7 @@ export default function Login({ onRegisterClick }: LoginProps) {
                 <div className="space-y-4 animate-fade-in text-xs">
                   <div className="relative rounded-xl border border-emerald-900/45 bg-neutral-950 overflow-hidden shadow-2xl">
                     <img 
-                      src={config.building3dImg || "/src/assets/images/building_3d_view_1780387092893.png"} 
+                      src={(config.building3dImg && !config.building3dImg.startsWith('/src/assets/')) ? config.building3dImg : building3dImg} 
                       alt="Astha Twin Towers 3D Render View" 
                       className="w-full aspect-video object-cover transition-transform duration-700 hover:scale-[1.03]"
                       referrerPolicy="no-referrer"
@@ -524,7 +526,7 @@ export default function Login({ onRegisterClick }: LoginProps) {
                 <div className="space-y-4 animate-fade-in text-xs">
                   <div className="relative rounded-xl border border-emerald-900/45 bg-neutral-950 overflow-hidden shadow-2xl">
                     <img 
-                      src={config.constructionImg || "/src/assets/images/construction_progress_1780387114013.png"} 
+                      src={(config.constructionImg && !config.constructionImg.startsWith('/src/assets/')) ? config.constructionImg : constructionImg} 
                       alt="Current construction progress at Khetasar Cumilla" 
                       className="w-full aspect-video object-cover transition-transform duration-700 hover:scale-[1.03]"
                       referrerPolicy="no-referrer"

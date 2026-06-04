@@ -98,6 +98,12 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    // Live database centralized sync boundary for Context updates
+    match /live_data/{dataId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
     // UserAccount security profiles security boundary
     match /userAccounts/{accountId} {
       allow read: if isSignedIn();
