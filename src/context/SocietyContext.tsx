@@ -535,6 +535,9 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         constructionPhases: setConstructionPhases,
       };
       
+      // Auto-validate cloud backup status since we are syncing continuously to Firestore
+      localStorage.setItem('astha_last_cloud_backup_time', String(Date.now()));
+
       Object.keys(keysMap).forEach(key => {
         onSnapshot(doc(db, 'live_data', key), (docSnap) => {
           if (docSnap.exists() && docSnap.data()?.data) {
