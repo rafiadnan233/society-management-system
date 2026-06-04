@@ -81,10 +81,10 @@ main .border-emerald-950,
 main .border-emerald-900,
 main .border-neutral-900,
 main .border-neutral-800,
-main .border-[#D4AF37]\/20,
-main .border-[#D4AF37]\/30,
-main .border-[#D4AF37]\/40,
-main .border-[#D4AF37]\/10 {
+main .border-\[\#D4AF37\]\/20,
+main .border-\[\#D4AF37\]\/30,
+main .border-\[\#D4AF37\]\/40,
+main .border-\[\#D4AF37\]\/10 {
   border-color: rgba(226, 232, 240, 0.9) !important;
 }
 
@@ -106,10 +106,10 @@ main .text-slate-400 {
 }
 
 /* Map specific golden text class elements in light mode under high density to vivid dark amber, looking outstanding */
-main .text-[#D4AF37] {
+main .text-\[\#D4AF37\] {
   color: #b45309 !important; /* text-amber-700 */
 }
-main .border-[#D4AF37] {
+main .border-\[\#D4AF37\] {
   border-color: #f59e0b !important; /* border-amber-500 */
 }
 
@@ -192,7 +192,7 @@ main .bg-emerald-900\/20 {
   color: #047857 !important;
   border-color: #a7f3d0 !important;
 }
-main .bg-[#D4AF37]\/10,
+main .bg-\[\#D4AF37\]\/10,
 main .bg-amber-950\/40 {
   background-color: #fffbeb !important;
   color: #b45309 !important;
@@ -308,7 +308,7 @@ main button.bg-red-650:hover {
     color: #10b981 !important;
   }
   #printable-receipt .text-amber-500,
-  #printable-receipt .text-[#D4AF37] {
+  #printable-receipt .text-\[\#D4AF37\] {
     color: #b45309 !important;
   }
   #printable-receipt .text-rose-500,
@@ -452,7 +452,7 @@ main button.bg-red-650:hover {
     color: #10b981 !important;
   }
   #member-payments-printable-card .text-amber-500,
-  #member-payments-printable-card .text-[#D4AF37] {
+  #member-payments-printable-card .text-\[\#D4AF37\] {
     color: #b45309 !important;
   }
   #member-payments-printable-card .text-rose-500,
