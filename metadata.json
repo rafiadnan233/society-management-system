@@ -1,0 +1,6 @@
+{
+  "name": "Astha Twin Towers",
+  "description": "আস্থা টুইন টাওয়ার খেতাসার, কুমিল্লা - A comprehensive, high-end residential society management system tailored for Astha Twin Towers, Khetasar, Cumilla with BDT currency, mobile wallet checkouts, and premium 3D isometric architectural visualization controls.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

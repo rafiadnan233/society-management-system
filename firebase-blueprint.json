@@ -1,0 +1,262 @@
+{
+  "entities": {
+    "SocietyConfig": {
+      "title": "SocietyConfig",
+      "description": "A dynamic model of the Astha Twin Towers configuration status, rules, and global banners.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "address": { "type": "string" },
+        "contactNo": { "type": "string" },
+        "email": { "type": "string" },
+        "bdtMaintenanceFee": { "type": "number" },
+        "bKashMerchant": { "type": "string" },
+        "nagadMerchant": { "type": "string" },
+        "rocketMerchant": { "type": "string" },
+        "language": { "type": "string", "enum": ["en", "bn"] },
+        "bannerAlert": { "type": "string" }
+      },
+      "required": ["name", "address", "contactNo", "email", "bdtMaintenanceFee", "language"]
+    },
+    "Flat": {
+      "title": "Flat",
+      "description": "A residential property unit representation mapping floor, owner, rent status, and payment standing.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "number": { "type": "string" },
+        "floor": { "type": "number" },
+        "status": { "type": "string", "enum": ["occupied_owner", "occupied_tenant", "vacant", "under_maintenance"] },
+        "ownerName": { "type": "string" },
+        "renterName": { "type": "string" },
+        "phone": { "type": "string" },
+        "monthlyRent": { "type": "number" },
+        "maintenanceStatus": { "type": "string", "enum": ["Paid", "Due", "Partial", "Overdue"] },
+        "squareFeet": { "type": "number" }
+      },
+      "required": ["id", "number", "floor", "status", "ownerName", "phone", "monthlyRent", "maintenanceStatus", "squareFeet"]
+    },
+    "Member": {
+      "title": "Member",
+      "description": "An individual registered society member directory file.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "flatNumber": { "type": "string" },
+        "type": { "type": "string", "enum": ["Owner", "Tenant"] },
+        "phone": { "type": "string" },
+        "nid": { "type": "string" },
+        "email": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Inactive"] },
+        "permanentAddress": { "type": "string" }
+      },
+      "required": ["id", "name", "flatNumber", "type", "phone", "nid", "email", "status"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "A collection billing record for rent, utilities, maintenance, or other fees.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "flatNumber": { "type": "string" },
+        "memberName": { "type": "string" },
+        "amount": { "type": "number" },
+        "dueAmount": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "feeType": { "type": "string", "enum": ["Maintenance", "Utility", "Gas", "Water", "Electricity", "Security_Parking", "Fine_Late_Fee", "Others"] },
+        "billingMonth": { "type": "string" },
+        "payDate": { "type": "string" },
+        "payMethod": { "type": "string", "enum": ["bKash", "Nagad", "Rocket", "Cash", "Card"] },
+        "status": { "type": "string", "enum": ["Paid", "Pending", "Partial", "Overdue"] },
+        "transactionId": { "type": "string" },
+        "referenceNo": { "type": "string" },
+        "reminderSent": { "type": "boolean" }
+      },
+      "required": ["id", "title", "flatNumber", "memberName", "amount", "dueAmount", "paidAmount", "feeType", "billingMonth", "status"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "An operational expense register representing outgoings.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string", "enum": ["Staff_Salary", "Electricity_Bill", "Water_Bill", "Repairs", "Cleaning_Garbage", "Security_Equipment", "Community_Event", "Others"] },
+        "amount": { "type": "number" },
+        "date": { "type": "string" },
+        "description": { "type": "string" },
+        "receiptNo": { "type": "string" },
+        "attachmentUrl": { "type": "string" }
+      },
+      "required": ["id", "title", "category", "amount", "date", "description"]
+    },
+    "Notice": {
+      "title": "Notice",
+      "description": "A notice board bulletin update.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "type": { "type": "string", "enum": ["Emergency", "Announcement", "Event", "Alert"] },
+        "date": { "type": "string" },
+        "expiryDate": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["id", "title", "content", "type", "date", "active"]
+    },
+    "Visitor": {
+      "title": "Visitor",
+      "description": "A guest login representing gated access control registries.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "flatNumber": { "type": "string" },
+        "purpose": { "type": "string" },
+        "entryTime": { "type": "string" },
+        "exitTime": { "type": "string" },
+        "numVisitors": { "type": "number" },
+        "nid": { "type": "string" },
+        "status": { "type": "string", "enum": ["Inside", "Checked-Out"] },
+        "recordedBy": { "type": "string" }
+      },
+      "required": ["id", "name", "phone", "flatNumber", "purpose", "entryTime", "numVisitors", "status", "recordedBy"]
+    },
+    "Complaint": {
+      "title": "Complaint",
+      "description": "A ticket logged by complex residents.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string", "enum": ["Electrical", "Water", "Security", "Noise_Spill", "Elevator_Lift", "Staff_Misbehavior", "Others"] },
+        "description": { "type": "string" },
+        "flatNumber": { "type": "string" },
+        "phone": { "type": "string" },
+        "priority": { "type": "string", "enum": ["Low", "Medium", "High", "Emergency"] },
+        "date": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "In-Progress", "Resolved"] },
+        "adminResponse": { "type": "string" },
+        "resolvedDate": { "type": "string" }
+      },
+      "required": ["id", "title", "category", "description", "flatNumber", "phone", "priority", "date", "status"]
+    },
+    "Staff": {
+      "title": "Staff",
+      "description": "An employee register with name, role, salary and status details.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["Manager", "Security_Guard", "Cleaner", "Lift_Operator", "Electrician_Plumber", "Others"] },
+        "phone": { "type": "string" },
+        "salary": { "type": "number" },
+        "nid": { "type": "string" },
+        "address": { "type": "string" },
+        "joinDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Inactive"] }
+      },
+      "required": ["id", "name", "role", "phone", "salary", "nid", "address", "joinDate", "status"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "A chronological server monitoring log audit trail record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "action": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "details": { "type": "string" }
+      },
+      "required": ["id", "userId", "userName", "action", "timestamp", "details"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "A notification alert sent out to complex members.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["Notice", "Payment", "Complaint", "Visitor", "General"] },
+        "isRead": { "type": "boolean" },
+        "date": { "type": "string" }
+      },
+      "required": ["id", "title", "message", "type", "isRead", "date"]
+    },
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "A registered user login record mapping to credentials and credentials status.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["Admin", "Resident", "Staff"] },
+        "flatNumber": { "type": "string" },
+        "phone": { "type": "string" },
+        "nid": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Pending", "Suspended"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "role", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "config/latest": {
+      "schema": "SocietyConfig",
+      "description": "Global settings configuration document representing current parameters."
+    },
+    "flats/{flatId}": {
+      "schema": "Flat",
+      "description": "Collections of individual 72 flats within Astha Twin Towers."
+    },
+    "members/{memberId}": {
+      "schema": "Member",
+      "description": "Resident members databases list indexing owner and tenancy statuses."
+    },
+    "payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Collection ledger billing entries tracking paid and due invoices."
+    },
+    "expenses/{expenseId}": {
+      "schema": "Expense",
+      "description": "Operating expenses registry file records."
+    },
+    "notices/{noticeId}": {
+      "schema": "Notice",
+      "description": "Notices board entries displayed broadly inside the twin tower dashboard."
+    },
+    "visitors/{visitorId}": {
+      "schema": "Visitor",
+      "description": "Visitor logs registry database tracking active presence."
+    },
+    "complaints/{complaintId}": {
+      "schema": "Complaint",
+      "description": "Complaints logged by residents requiring admin attention and responses."
+    },
+    "staff/{staffId}": {
+      "schema": "Staff",
+      "description": "Staff profile directory details."
+    },
+    "activityLogs/{logId}": {
+      "schema": "ActivityLog",
+      "description": "Monitoring and administration operations logs."
+    },
+    "notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Individual notifications broadcasts registry."
+    },
+    "userAccounts/{accountId}": {
+      "schema": "UserAccount",
+      "description": "Dynamic registered credentials lookup mapping."
+    }
+  }
+}

@@ -1,0 +1,551 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Custom Horizontal Scrolling Marquee Animation */
+@keyframes marquee {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.animate-marquee-scroll {
+  display: inline-block;
+  white-space: nowrap;
+  animation: marquee 30s linear infinite;
+  will-change: transform;
+}
+
+.animate-marquee-scroll:hover {
+  animation-play-state: paused;
+}
+
+
+/* Global Light High-Density Aesthetic Override Layer */
+
+body {
+  background-color: #f8fafc;
+  color: #1e293b; /* slate-800 */
+}
+
+/* Scrollbars styling for High Density */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1; /* slate-300 */
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8; /* slate-400 */
+}
+
+/* Override all dark background panels with beautiful light-slate / pure white panels */
+main .bg-neutral-950,
+main .bg-neutral-900,
+main .bg-black,
+main .bg-stone-950,
+main .bg-stone-900,
+main .bg-slate-950,
+main .bg-zinc-950,
+main .bg-zinc-900,
+main .bg-emerald-950\/10,
+main .bg-emerald-950\/20,
+main .bg-emerald-950\/40,
+main .bg-emerald-950\/45,
+main .bg-neutral-950\/45,
+main .bg-neutral-950\/40,
+main .bg-neutral-950\/20,
+main .bg-neutral-900\/45,
+main .bg-neutral-900\/40,
+main .bg-neutral-900\/10,
+main [class*="bg-neutral-950"],
+main [class*="bg-neutral-900"],
+main [class*="bg-emerald-950/20"],
+main [class*="bg-emerald-950/45"] {
+  background-color: #ffffff !important;
+  backdrop-filter: blur(12px) !important;
+  border-color: rgba(226, 232, 240, 0.8) !important;
+}
+
+/* Change borders of cards to elegant light border */
+main .border-emerald-950,
+main .border-emerald-900,
+main .border-neutral-900,
+main .border-neutral-800,
+main .border-[#D4AF37]\/20,
+main .border-[#D4AF37]\/30,
+main .border-[#D4AF37]\/40,
+main .border-[#D4AF37]\/10 {
+  border-color: rgba(226, 232, 240, 0.9) !important;
+}
+
+/* Text overrides in main panel */
+main .text-white {
+  color: #0f172a !important; /* text-slate-900 */
+}
+main .text-slate-100 {
+  color: #1e293b !important; /* text-slate-800 */
+}
+main .text-slate-200 {
+  color: #334155 !important; /* text-slate-700 */
+}
+main .text-slate-300 {
+  color: #475569 !important; /* text-slate-600 */
+}
+main .text-slate-400 {
+  color: #64748b !important; /* text-slate-500 */
+}
+
+/* Map specific golden text class elements in light mode under high density to vivid dark amber, looking outstanding */
+main .text-[#D4AF37] {
+  color: #b45309 !important; /* text-amber-700 */
+}
+main .border-[#D4AF37] {
+  border-color: #f59e0b !important; /* border-amber-500 */
+}
+
+/* Table styling fixes */
+main table {
+  background-color: #ffffff !important;
+}
+main thead {
+  background-color: #f8fafc !important;
+}
+main thead th {
+  color: #64748b !important;
+}
+main tbody tr {
+  border-bottom-color: #f1f5f9 !important;
+}
+main tbody tr:hover {
+  background-color: #f8fafc !important;
+}
+
+/* Forms inside main workspace should be light and high density */
+main input[type="text"],
+main input[type="number"],
+main input[type="email"],
+main input[type="password"],
+main input[type="date"],
+main select,
+main textarea {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+main input::placeholder,
+main textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Dialog boxes / Modals */
+.fixed.inset-0 {
+  background-color: rgba(15, 23, 42, 0.4) !important;
+  backdrop-filter: blur(4px);
+}
+.fixed.inset-0 div[class*="bg-neutral-950"],
+.fixed.inset-0 div[class*="bg-black"],
+.fixed.inset-0 div[class*="bg-[#051410]"],
+.fixed.inset-0 div[class*="bg-neutral-900"] {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+.fixed.inset-0 div[class*="bg-neutral-950"] .text-white,
+.fixed.inset-0 div[class*="bg-black"] .text-white,
+.fixed.inset-0 div[class*="bg-neutral-950"] .text-slate-100,
+.fixed.inset-0 div[class*="bg-black"] .text-slate-200 {
+  color: #0f172a !important;
+}
+.fixed.inset-0 div[class*="bg-neutral-950"] .text-slate-400,
+.fixed.inset-0 div[class*="bg-black"] .text-slate-400 {
+  color: #475569 !important;
+}
+.fixed.inset-0 div[class*="bg-neutral-950"] input,
+.fixed.inset-0 div[class*="bg-black"] input,
+.fixed.inset-0 div[class*="bg-neutral-950"] select,
+.fixed.inset-0 div[class*="bg-black"] select {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+.fixed.inset-0 div[class*="bg-neutral-950"] label,
+.fixed.inset-0 div[class*="bg-black"] label {
+  color: #475569 !important;
+}
+
+/* Badge high readability conversions */
+/* Active / Tenant-Owner tags */
+main .bg-emerald-950\/40,
+main .bg-emerald-950\/20,
+main .bg-emerald-900\/20 {
+  background-color: #ecfdf5 !important;
+  color: #047857 !important;
+  border-color: #a7f3d0 !important;
+}
+main .bg-[#D4AF37]\/10,
+main .bg-amber-950\/40 {
+  background-color: #fffbeb !important;
+  color: #b45309 !important;
+  border-color: #fde68a !important;
+}
+main .bg-red-950\/40,
+main .bg-rose-955\/40,
+main .bg-rose-950\/40 {
+  background-color: #fef2f2 !important;
+  color: #b91c1c !important;
+  border-color: #fecaca !important;
+}
+
+/* Action Button styling for premium SaaS dashboard feel */
+main button.bg-emerald-600 {
+  background-color: #047857 !important;
+}
+main button.bg-emerald-600:hover {
+  background-color: #065f46 !important;
+}
+main button.bg-red-650 {
+  background-color: #dc2626 !important;
+}
+main button.bg-red-650:hover {
+  background-color: #b91c1c !important;
+}
+
+/* HIGH FIDELITY PRINT LAYOUT OVERRIDES */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Reset heights, dimensions, scroll hiding, and positioning for correct pagination */
+  html,
+  body, 
+  #root, 
+  #root > div,
+  #root > div > div,
+  main, 
+  .flex-1 {
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+    display: block !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* Specially layout and style the receipt modal when active or printing-receipt-active is enabled */
+  body.printing-receipt-active .fixed {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    backdrop-filter: none !important;
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  body.printing-receipt-active .fixed > div {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  /* Hide user navigation elements, sidebars, interactive controls & forms */
+  header, 
+  aside, 
+  nav,
+  .print\:hidden,
+  .absolute.top-4.right-4,
+  [title="Print receipt"],
+  .modal-buttons,
+  #global-print-button {
+    display: none !important;
+  }
+
+  /* Force elements into pristine, ink-saving printing palettes */
+  #printable-receipt,
+  #printable-receipt * {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border-color: #94a3b8 !important;
+    box-shadow: none !important;
+  }
+
+  /* Preserve high fidelity colors for transaction and status badges */
+  #printable-receipt .text-emerald-500,
+  #printable-receipt .text-emerald-400 {
+    color: #10b981 !important;
+  }
+  #printable-receipt .text-amber-500,
+  #printable-receipt .text-[#D4AF37] {
+    color: #b45309 !important;
+  }
+  #printable-receipt .text-rose-500,
+  #printable-receipt .text-rose-400 {
+    color: #ef4444 !important;
+  }
+
+  /* Tables and financial records standard print optimizations */
+  main .rounded-xl,
+  main .overflow-hidden,
+  main .overflow-x-auto,
+  main .overflow-y-auto {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+  
+  main .rounded-xl {
+    box-shadow: none !important;
+    background: #ffffff !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    background: #ffffff !important;
+  }
+
+  th, td {
+    padding: 8px !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+    color: #000000 !important;
+  }
+
+  /* Support high-fidelity A4 printing for dynamic official registry sheets */
+  #dynamic-print-report,
+  #dynamic-print-report * {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: none !important;
+  }
+
+  /* When printing, isolate and render exclusively the system reports, hiding sidebars and headers */
+  body:has(#dynamic-print-report) #root > :not(.fixed),
+  body:has(#dynamic-print-report) #main-content-area,
+  body:has(#dynamic-print-report) .fixed:not(:has(#dynamic-print-report)),
+  body:has(#dynamic-print-report) .fixed:has(#dynamic-print-report) > div:first-child {
+    display: none !important;
+  }
+
+  body:has(#dynamic-print-report) .fixed:has(#dynamic-print-report) {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+
+  #dynamic-print-report {
+    max-width: 100% !important;
+    width: 100% !important;
+    display: block !important;
+    box-sizing: border-box !important;
+    color: #000000 !important;
+    background-color: #ffffff !important;
+  }
+
+  /* When printing, isolate and render exclusively structural money receipts dynamically */
+  body:has(#printable-receipt) #root > :not(.fixed),
+  body:has(#printable-receipt) #main-content-area,
+  body:has(#printable-receipt) .fixed:not(:has(#printable-receipt)),
+  body:has(#printable-receipt) .fixed:has(#printable-receipt) > div:first-child {
+    display: none !important;
+  }
+
+  body:has(#printable-receipt) .fixed:has(#printable-receipt) {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  #printable-receipt {
+    max-width: 100% !important;
+    width: 100% !important;
+    display: block !important;
+    box-sizing: border-box !important;
+    color: #000000 !important;
+    background-color: #ffffff !important;
+    border: 1px solid #94a3b8 !important;
+    border-radius: 8px !important;
+    padding: 24px !important;
+    margin: 0 auto !important;
+    box-shadow: none !important;
+  }
+
+  /* When printing, isolate and render exclusively structural member payment history dynamically */
+  body:has(#member-payments-printable-card) #root > :not(.fixed),
+  body:has(#member-payments-printable-card) #main-content-area,
+  body:has(#member-payments-printable-card) .fixed:not(:has(#member-payments-printable-card)),
+  body:has(#member-payments-printable-card) .fixed:has(#member-payments-printable-card) > div:first-child {
+    display: none !important;
+  }
+
+  body:has(#member-payments-printable-card) .fixed:has(#member-payments-printable-card) {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  #member-payments-printable-card,
+  #member-payments-printable-card * {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: none !important;
+  }
+
+  #member-payments-printable-card {
+    max-width: 100% !important;
+    width: 100% !important;
+    display: block !important;
+    box-sizing: border-box !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    padding: 24px !important;
+    margin: 0 auto !important;
+  }
+
+  #member-payments-printable-card .text-emerald-500,
+  #member-payments-printable-card .text-emerald-400 {
+    color: #10b981 !important;
+  }
+  #member-payments-printable-card .text-amber-500,
+  #member-payments-printable-card .text-[#D4AF37] {
+    color: #b45309 !important;
+  }
+  #member-payments-printable-card .text-rose-500,
+  #member-payments-printable-card .text-rose-400 {
+    color: #ef4444 !important;
+  }
+
+  /* When printing, isolate and render exclusively the formal exportable receipt slip */
+  body:has(#formal-exportable-slip) #root > :not(.fixed),
+  body:has(#formal-exportable-slip) #main-content-area,
+  body:has(#formal-exportable-slip) .fixed:not(:has(#formal-exportable-slip)),
+  body:has(#formal-exportable-slip) .fixed:has(#formal-exportable-slip) > div:first-child {
+    display: none !important;
+  }
+
+  body:has(#formal-exportable-slip) .fixed:has(#formal-exportable-slip) {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  body:has(#formal-exportable-slip) #formal-receipt-generator-viewport {
+    position: static !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  body:has(#formal-exportable-slip) #formal-receipt-generator-viewport > div {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  /* Hide the customizer parameters panel during print */
+  body:has(#formal-exportable-slip) #formal-receipt-generator-viewport > div > div:first-child {
+    display: none !important;
+  }
+
+  /* Hide headers and surrounding controls in the right preview column */
+  body:has(#formal-exportable-slip) #formal-receipt-generator-viewport > div > div:last-child > :not(.overflow-x-auto) {
+    display: none !important;
+  }
+
+  body:has(#formal-exportable-slip) #formal-receipt-generator-viewport > div > div:last-child {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+  }
+
+  body:has(#formal-exportable-slip) #formal-receipt-generator-viewport .overflow-x-auto {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+
+  /* Style the printed receipt itself */
+  #formal-exportable-slip {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    box-sizing: border-box !important;
+    page-break-inside: avoid !important;
+    box-shadow: none !important;
+  }
+
+  /* Force landscape mode specifically for formal receipt */
+  @page {
+    size: landscape;
+    margin: 10mm;
+  }
+}
+
