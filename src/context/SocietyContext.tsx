@@ -4,6 +4,8 @@
  */
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { db } from '../utils/firebase';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import {
   UserSession,
   Member,
@@ -517,35 +519,44 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     // LIVE DATABASE SYNC
     const startLiveSync = () => {
-      import('../utils/firebase').then(({ db }) => {
-        import('firebase/firestore').then(({ doc, onSnapshot }) => {
-          const keysMap: Record<string, Function> = {
-            config: setConfig,
-            members: setMembers,
-            flats: setFlats,
-            payments: setPayments,
-            expenses: setExpenses,
-            notices: setNotices,
-            visitors: setVisitors,
-            complaints: setComplaints,
-            staff: setStaff,
-            activityLogs: setActivityLogs,
-            notifications: setNotifications,
-            user_accounts: setUserAccounts,
-            constructionPhases: setConstructionPhases,
-          };
-          
-          Object.keys(keysMap).forEach(key => {
-            onSnapshot(doc(db, 'live_data', key), (docSnap) => {
-              if (docSnap.exists() && docSnap.data().data) {
-                const data = docSnap.data().data;
-                keysMap[key](data);
-                localStorage.setItem(`as_${key}`, JSON.stringify(data));
+      const keysMap: Record<string, Function> = {
+        config: setConfig,
+        members: setMembers,
+        flats: setFlats,
+        payments: setPayments,
+        expenses: setExpenses,
+        notices: setNotices,
+        visitors: setVisitors,
+        complaints: setComplaints,
+        staff: setStaff,
+        activityLogs: setActivityLogs,
+        notifications: setNotifications,
+        user_accounts: setUserAccounts,
+        constructionPhases: setConstructionPhases,
+      };
+      
+      Object.keys(keysMap).forEach(key => {
+        onSnapshot(doc(db, 'live_data', key), (docSnap) => {
+          if (docSnap.exists() && docSnap.data()?.data) {
+            const data = docSnap.data().data;
+            keysMap[key](data);
+            localStorage.setItem(`as_${key}`, JSON.stringify(data));
+          } else {
+            // If the remote config doesn't exist (fresh DB), seed it with current local storage to initiate live tracking.
+            const localDataStr = localStorage.getItem(`as_${key}`);
+            if (localDataStr) {
+              try {
+                const parsedLocal = JSON.parse(localDataStr);
+                // Do not attempt to seed if it's completely empty to avoid overwriting a wiping event, 
+                // but in the case of a new app environment, push the local state.
+                setDoc(doc(db, 'live_data', key), { data: parsedLocal }, { merge: true });
+              } catch (e) {
+                // Ignore parse errors on seed
               }
-            });
-          });
+            }
+          }
         });
-      }).catch(e => console.error("Firebase sync setup failed", e));
+      });
     };
 
     startLiveSync();
@@ -597,16 +608,17 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const saveToStorage = (key: string, data: any) => {
     localStorage.setItem(`as_${key}`, JSON.stringify(data));
     
-    // Push the changes to Firebase Live Database asynchronously
-    import('../utils/firebase').then(({ db }) => {
-      import('firebase/firestore').then(({ doc, setDoc }) => {
-        setDoc(doc(db, 'live_data', key), { data }).catch(e => {
-          console.warn("Live DB sync save failed for ", key, e);
-        });
+    // Push the changes to Firebase Live Database synchronously into the offline persistent queue
+    try {
+      // We stringify and parse to ensure all undefined keys are stripped out.
+      // Firestore will immediately crash on any undefined keys.
+      const cleanData = JSON.parse(JSON.stringify(data));
+      setDoc(doc(db, 'live_data', key), { data: cleanData }).catch(e => {
+        console.warn("Live DB sync save failed for ", key, e);
       });
-    }).catch(e => {
-      console.warn("Live DB import failed for ", key, e);
-    });
+    } catch (e) {
+      console.warn("Live DB stringify sync failed", e);
+    }
   };
 
   // Auth Operations
