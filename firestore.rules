@@ -100,8 +100,7 @@ service cloud.firestore {
 
     // Live database centralized sync boundary for Context updates
     match /live_data/{dataId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read, write: if true;
     }
 
     // UserAccount security profiles security boundary

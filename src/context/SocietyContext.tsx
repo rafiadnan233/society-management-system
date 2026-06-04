@@ -575,7 +575,7 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
     const updated = [newLog, ...activityLogs].slice(0, 50); // limit to 50
     setActivityLogs(updated);
-    localStorage.setItem('as_activityLogs', JSON.stringify(updated));
+    saveToStorage('activityLogs', updated);
   };
 
   // Push notification helper
@@ -590,7 +590,7 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
     const updated = [newNotif, ...notifications];
     setNotifications(updated);
-    localStorage.setItem('as_notifications', JSON.stringify(updated));
+    saveToStorage('notifications', updated);
   };
 
   // Persistors
@@ -598,15 +598,15 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     localStorage.setItem(`as_${key}`, JSON.stringify(data));
     
     // Push the changes to Firebase Live Database asynchronously
-    try {
-      import('../utils/firebase').then(({ db }) => {
-        import('firebase/firestore').then(({ doc, setDoc }) => {
-          setDoc(doc(db, 'live_data', key), { data });
+    import('../utils/firebase').then(({ db }) => {
+      import('firebase/firestore').then(({ doc, setDoc }) => {
+        setDoc(doc(db, 'live_data', key), { data }).catch(e => {
+          console.warn("Live DB sync save failed for ", key, e);
         });
       });
-    } catch (error) {
-      console.warn("Live DB sync failed for ", key);
-    }
+    }).catch(e => {
+      console.warn("Live DB import failed for ", key, e);
+    });
   };
 
   // Auth Operations
