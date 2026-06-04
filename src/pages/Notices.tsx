@@ -37,12 +37,6 @@ export default function Notices() {
     setShowAddModal(true);
   };
 
-  const openSmsModal = () => {
-    setSmsMessage('');
-    setSmsStatus(null);
-    setShowSmsModal(true);
-  };
-
   const openEditModal = (notice: Notice) => {
     setEditingNotice(notice);
     setTitle(notice.title);
@@ -51,47 +45,6 @@ export default function Notices() {
     setExpiryDate(notice.expiryDate || '');
     setIsPermanent(!notice.expiryDate);
     setShowAddModal(true);
-  };
-
-  const handleSendBulkSms = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!smsMessage.trim()) return;
-
-    const activeMembers = members.filter(m => m.status === 'Active');
-    const phoneNumbers = activeMembers.map(m => m.phone).filter(p => p && p.trim().length >= 10);
-
-    if (phoneNumbers.length === 0) {
-      setSmsStatus(language === 'bn' ? 'কোনো বৈধ ফোন নম্বর পাওয়া যায়নি!' : 'No valid phone numbers found for active members!');
-      return;
-    }
-
-    setIsSendingSms(true);
-    setSmsStatus(language === 'bn' ? 'এসএমএস পাঠানো হচ্ছে...' : 'Sending SMS...');
-
-    try {
-      const response = await fetch('/api/send-sms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: phoneNumbers,
-          message: `[Khetasar Society Mgt] ${smsMessage}`
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send SMS');
-      }
-
-      setSmsStatus(language === 'bn' ? 'এসএমএস সফলভাবে পাঠানো হয়েছে!' : 'SMS broadcast sent successfully!');
-      setTimeout(() => setShowSmsModal(false), 2000);
-    } catch (error: any) {
-      console.error(error);
-      setSmsStatus(`Error: ${error.message}`);
-    } finally {
-      setIsSendingSms(false);
-    }
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
@@ -151,16 +104,6 @@ export default function Notices() {
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
-          {currentUser?.role === 'Admin' && (
-            <button
-              onClick={openSmsModal}
-              className="flex items-center gap-1.5 rounded-lg bg-teal-900 border border-teal-800 px-4 py-2 text-xs font-bold text-teal-100 hover:bg-teal-800 cursor-pointer print:hidden transition-all"
-            >
-              <MessageSquareShare className="h-4 w-4 text-teal-400" />
-              <span>{language === 'bn' ? 'এসএমএস পাঠান' : 'Send Bulk SMS'}</span>
-            </button>
-          )}
-          
           {currentUser?.role === 'Admin' && (
             <button
               onClick={openAddModal}
@@ -411,82 +354,6 @@ export default function Notices() {
 
             </form>
 
-          </div>
-        </div>
-      )}
-
-      {/* Send Bulk SMS Modal */ }
-      {showSmsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-xl border border-teal-900/50 bg-neutral-950 p-6 space-y-4 shadow-2xl shadow-teal-900/20">
-            <div className="flex items-center justify-between pb-2 border-b border-teal-900/30">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono flex items-center gap-2">
-                <MessageSquareShare className="h-4 w-4 text-teal-400" />
-                {language === 'bn' ? 'সকলকে এসএমএস পাঠান' : 'Broadcast Bulk SMS'}
-              </h3>
-              <button 
-                onClick={() => setShowSmsModal(false)}
-                className="text-slate-400 hover:text-white"
-                type="button"
-                disabled={isSendingSms}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSendBulkSms} className="space-y-4 text-xs">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <label className="text-[10px] font-bold text-slate-400 block font-mono">
-                    {language === 'bn' ? 'এসএমএস এর বিষয়বস্তু' : 'SMS Message Content'}
-                  </label>
-                  <SpeechDictationButton onTranscript={(txt) => setSmsMessage(p => p ? `${p} ${txt}` : txt)} />
-                </div>
-                <textarea
-                  required
-                  rows={4}
-                  value={smsMessage}
-                  onChange={(e) => setSmsMessage(e.target.value)}
-                  placeholder={language === 'bn' ? 'জরুরী নোটিশ সমূহ লিখুন...' : "Emergency water shutdown at 2 PM..."}
-                  className="block w-full rounded border border-teal-900/50 bg-neutral-900 px-3 py-2 text-white focus:outline-none focus:border-teal-500 leading-relaxed"
-                  disabled={isSendingSms}
-                  maxLength={160}
-                />
-                <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono">
-                  <span>{language === 'bn' ? 'শুধুমাত্র সক্রিয় সদস্যদের পাঠানো হবে' : 'Sent to Active Members only'}</span>
-                  <span className={smsMessage.length >= 150 ? 'text-rose-400' : ''}>{smsMessage.length}/160</span>
-                </div>
-              </div>
-
-              {smsStatus && (
-                <div className={`p-2.5 rounded border text-[11px] font-mono ${
-                  smsStatus.includes('Error:') 
-                    ? 'bg-rose-950/30 border-rose-900 text-rose-400' 
-                    : 'bg-teal-950/30 border-teal-900 text-teal-400'
-                }`}>
-                  {smsStatus}
-                </div>
-              )}
-
-              <div className="flex justify-end gap-2.5 pt-3 border-t border-teal-900/30">
-                <button
-                  type="button"
-                  onClick={() => setShowSmsModal(false)}
-                  className="px-4 py-1.5 border border-neutral-800 rounded text-slate-400 hover:text-white"
-                  disabled={isSendingSms}
-                >
-                  {t.cancel}
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSendingSms || !smsMessage.trim()}
-                  className="px-4 py-1.5 bg-teal-600 rounded border border-teal-500 text-white hover:bg-teal-500 font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {isSendingSms && <span className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full" />}
-                  {language === 'bn' ? 'এসএমএস ব্রডকাস্ট করুন' : 'Broadcast Message'}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

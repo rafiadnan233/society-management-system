@@ -46,7 +46,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     { id: 'expenses', label: t.expenses, icon: TrendingDown, roles: ['Admin'] },
     { id: 'notices', label: t.notices, icon: Megaphone, roles: ['Admin', 'Resident', 'Staff'] },
     { id: 'chat', label: t.chat, icon: MessageSquare, roles: ['Admin', 'Resident', 'Staff'] },
-    { id: 'voice', label: t.voice_rooms, icon: Phone, roles: ['Admin', 'Resident', 'Staff'] },
     { id: 'complaints', label: t.complaints, icon: LifeBuoy, roles: ['Admin', 'Resident', 'Staff'] },
     { id: 'visitors', label: t.visitors, icon: UserCheck, roles: ['Admin', 'Staff'] },
     { id: 'staff', label: t.staff, icon: ShieldAlert, roles: ['Admin'] },

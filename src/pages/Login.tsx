@@ -7,7 +7,6 @@ import React, { useState } from 'react';
 import { useSociety } from '../context/SocietyContext';
 import { translations } from '../utils/translations';
 import { Notice } from '../types';
-import LoginChatbot from '../components/LoginChatbot';
 import { 
   Shield, 
   Key, 
@@ -1350,8 +1349,6 @@ export default function Login({ onRegisterClick }: LoginProps) {
         </div>
       )}
 
-      {/* Floating Smart Assist Chatbot */}
-      <LoginChatbot />
 
     </div>
   );

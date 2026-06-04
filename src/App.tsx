@@ -27,7 +27,6 @@ import Profile from './pages/Profile';
 import BackupRestore from './pages/BackupRestore';
 import Construction from './pages/Construction';
 import GoogleChat from './pages/GoogleChat';
-import VoiceRooms from './pages/VoiceRooms';
 
 function AppContent() {
   const { currentUser, activeTab } = useSociety();
@@ -73,8 +72,6 @@ function AppContent() {
         return <Construction />;
       case 'chat':
         return <GoogleChat />;
-      case 'voice':
-        return <VoiceRooms />;
       case 'payments':
         return <Payments />;
       case 'expenses':
