@@ -77,7 +77,7 @@ function getFloorName(floor: number, lang: string) {
 
 export default function GoogleChat() {
   const { language, config, updateConfig, currentUser, flats } = useSociety();
-  const [needsAuth, setNeedsAuth] = useState(true);
+  const [needsAuth, setNeedsAuth] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
@@ -730,81 +730,9 @@ export default function GoogleChat() {
             {language === 'bn' ? 'কমিউনিটি এলার্ট এবং পারস্পরিক আলোচনা উইজার্ড' : 'SOCIETY SPACES & CORE EMERGENCIES CONTROL CENTER'}
           </p>
         </div>
-
-        {/* Action Toggle to bypass sign-in and preview instantly */}
-        <div className="flex items-center gap-3">
-          {needsAuth ? (
-            <button
-              onClick={() => setNeedsAuth(false)}
-              className="text-xs font-black text-emerald-400 bg-emerald-950/60 hover:bg-emerald-900/60 px-3.5 py-2 border border-emerald-800/40 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <Compass className="h-4 w-4 text-[#D4AF37] animate-pulse" />
-              <span>{language === 'bn' ? 'ভার্চুয়াল স্পেস প্রিভিউ করুন' : 'Launch Virtual Spaces Preview'}</span>
-            </button>
-          ) : (
-            <div className="flex gap-2.5">
-              <span className="bg-emerald-950/80 text-emerald-400 border border-emerald-900 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5">
-                <CheckCircle2 className="h-4 w-4 text-[#D4AF37]" />
-                {language === 'bn' ? 'প্রিভিউ মোড সক্রিয়' : 'Virtual Sandbox Active'}
-              </span>
-              <button
-                onClick={() => { setNeedsAuth(true); }}
-                className="text-xs text-rose-400 hover:text-white border border-rose-950 px-3 py-1.5 rounded-xl hover:bg-rose-950/20"
-              >
-                {language === 'bn' ? 'লগআউট' : 'Lock Account'}
-              </button>
-            </div>
-          )}
-        </div>
       </div>
 
-      {needsAuth ? (
-        <div className="bg-white rounded-2xl border-2 border-emerald-100 p-10 text-center shadow-xl flex flex-col items-center max-w-2xl mx-auto mt-8">
-          <div className="h-16 w-16 bg-emerald-50 rounded-full flex items-center justify-center mb-6 border border-emerald-100">
-            <MessageSquare className="h-8 w-8 text-emerald-600" />
-          </div>
-          <h2 className="text-xl font-black text-slate-800 mb-3 tracking-tight">
-            {language === 'bn' ? 'আস্থা ডিজিটাল চ্যাট কমিউনিটি' : 'Community Authentication'}
-          </h2>
-          <p className="text-xs text-slate-500 mb-6 font-mono tracking-wide uppercase font-bold">
-            {language === 'bn' ? 'ভেরিফাইড নাগরিক প্রমাণ' : 'VERIFIED CITIZEN ACCESS LAYER'}
-          </p>
-          <p className="text-sm text-slate-600 mb-8 max-w-md leading-relaxed font-sans font-medium">
-            {language === 'bn' 
-              ? 'কমিউনিটি স্পেস এবং গুগল চ্যাট দেখার জন্য আমাদের ক্লাউড এপিআই বা গুগল অ্যাকাউন্টের মাধ্যমে সাইন-ইন করতে হবে। এর মাধ্যমে আমরা শুধুমাত্র ফ্ল্যাট ও সোসাইটির প্রকৃত সদস্যদের নিরাপত্তা নিশ্চিত করি।' 
-              : 'Sign in utilizing your Google Workspace or personal account to display pre-authenticated society channels and matrix logs. This guarantees a secure and fully certified digital network.'}
-          </p>
-          
-          <div className="flex flex-col sm:flex-row gap-3 w-full justify-center">
-            <button 
-              type="button" 
-              onClick={handleLogin}
-              disabled={isLoggingIn}
-              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 text-sm shadow-md transition-all border border-emerald-500/30 cursor-pointer disabled:opacity-50"
-            >
-              <LogIn className="h-4 w-4" />
-              <span>{isLoggingIn ? (language === 'bn' ? 'সাইন ইন হচ্ছে...' : 'Signing In...') : (language === 'bn' ? 'Google অ্যাকাউন্টে প্রবেশ করুন' : 'Verify with Google Account')}</span>
-            </button>
-
-            <button 
-              type="button" 
-              onClick={() => setNeedsAuth(false)}
-              className="px-6 py-3 bg-slate-900 hover:bg-slate-850 text-[#D4AF37] font-bold rounded-xl flex items-center justify-center gap-2 text-sm shadow-md transition-all border border-slate-700 cursor-pointer"
-            >
-              <Compass className="h-4 w-4 text-emerald-500" />
-              <span>{language === 'bn' ? 'ভার্চুয়াল রুম টেস্ট করুন' : 'Audit Virtual Rooms Sandbox'}</span>
-            </button>
-          </div>
-          
-          {error && (
-            <div className="mt-6 p-4 bg-rose-50 border-l-4 border-rose-500 rounded text-rose-800 text-xs font-semibold w-full text-left flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-rose-500 shrink-0 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-6">
+      <div className="space-y-6">
           {/* Main admin panel menu bar inside digital society chat room */}
           <div className="flex flex-wrap items-center justify-between gap-3 bg-neutral-900 border border-emerald-950 px-5 py-3.5 rounded-2xl shadow-xl">
             <div className="flex flex-wrap items-center gap-2.5">
@@ -1693,7 +1621,6 @@ export default function GoogleChat() {
           )}
 
         </div>
-      )}
 
       {/* Dedicated Photo Edit Modal */}
       {photoEditMember && (
