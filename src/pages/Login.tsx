@@ -3093,7 +3093,7 @@ export default function Login({ onRegisterClick }: LoginProps) {
           </div>
 
           <div className="mt-4 p-4 rounded-xl bg-neutral-900/20 border border-emerald-950 text-center text-[10px] text-slate-500 font-mono uppercase tracking-wider">
-            {language === 'bn' ? 'খসড়া ও ডাটা লোকাল ব্রাউজারে সংরক্ষিত' : 'SECURITY STANDARDS COMPLIANT'}
+            {language === 'bn' ? 'নিরাপত্তা মানদণ্ড অনুযায়ী সুরক্ষিত' : 'SECURITY STANDARDS COMPLIANT'}
           </div>
         </section>
 
