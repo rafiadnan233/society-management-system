@@ -145,6 +145,43 @@ export default function Reports() {
     }
   };
 
+  const handleDownloadExpensesPDF = async () => {
+    const element = document.getElementById('printable-expenses');
+    if (!element) return;
+
+    try {
+      setIsGeneratingPDF(true);
+      
+      // Sanitize all inline styles to prevent oklch rendering exceptions
+      sanitizeAllInlineStyles(element);
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        backgroundColor: '#ffffff', // Light background for expenses PDF
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const imgWidth = pdfWidth - 20;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
+      pdf.save(`Expenses-Report-${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (error) {
+      console.error('Failed to generate PDF', error);
+      alert(language === 'bn' ? 'পিডিএফ তৈরি ব্যর্থ হয়েছে।' : 'Failed to generate PDF.');
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
+
   return (
     <div className="space-y-6">
       
@@ -196,6 +233,21 @@ export default function Reports() {
             {isGeneratingPDF 
               ? (language === 'bn' ? 'অডিট ডাউনলোড হচ্ছে...' : 'Generating Audit PDF...') 
               : (language === 'bn' ? 'অডিট ডাউনলোড করুন' : 'Download Monthly Audit')
+            }
+          </span>
+        </button>
+
+        <button
+          type="button"
+          disabled={isGeneratingPDF}
+          onClick={handleDownloadExpensesPDF}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded bg-neutral-900 border border-[#D4AF37]/40 hover:border-[#D4AF37]/80 text-xs font-bold text-white cursor-pointer disabled:opacity-50 transition-all shadow-md transform active:scale-95"
+        >
+          <FileDown className="h-4.5 w-4.5 text-[#D4AF37]" />
+          <span>
+            {isGeneratingPDF 
+              ? (language === 'bn' ? 'রিপোর্ট ডাউনলোড হচ্ছে...' : 'Generating PDF...') 
+              : (language === 'bn' ? 'খরচের রিপোর্ট ডাউনলোড' : 'Download Expenses PDF')
             }
           </span>
         </button>
@@ -342,9 +394,9 @@ export default function Reports() {
             <span className="text-lg font-black text-emerald-400 font-mono print:text-emerald-700">{formatBDT(incomeSum)}</span>
           </div>
 
-          <div className="bg-neutral-900 border border-emerald-950 p-4 rounded text-center print:bg-white print:border-slate-300">
+          <div className={`bg-neutral-900 border border-emerald-950 p-4 rounded text-center print:bg-white print:border-slate-300 ${expenseSum > (config.monthlyExpenseBudget || 50000) ? 'border-rose-900' : ''}`}>
             <span className="block text-[9px] text-slate-500 uppercase font-mono mb-1">TOTAL EXPENSES (Disbursed)</span>
-            <span className="text-lg font-black text-[#D4AF37] font-mono print:text-amber-800">{formatBDT(expenseSum)}</span>
+            <span className={`text-lg font-black font-mono print:text-amber-800 ${expenseSum > (config.monthlyExpenseBudget || 50000) ? 'text-rose-500' : 'text-[#D4AF37]'}`}>{formatBDT(expenseSum)}</span>
           </div>
 
           <div className="bg-neutral-900 border border-emerald-950 p-4 rounded text-center print:bg-white print:border-slate-300">
@@ -421,6 +473,35 @@ export default function Reports() {
           </div>
         </div>
 
+      </div>
+
+      {/* Hidden template for expense report */}
+      <div id="printable-expenses" className="hidden bg-white p-6 text-black">
+        <h1 className="text-2xl font-bold mb-4">{language === 'bn' ? 'সকল ভবনের খরচের বিবরণ' : 'Formal Summary Report of All Building Expenses'}</h1>
+        <table className="w-full mt-4 border-collapse border border-gray-300 text-xs">
+          <thead>
+            <tr className="border-b bg-gray-100">
+              <th className="p-2 text-left">{language === 'bn' ? 'তারিখ' : 'Date'}</th>
+              <th className="p-2 text-left">{language === 'bn' ? 'শিরোনাম' : 'Title'}</th>
+              <th className="p-2 text-left">{language === 'bn' ? 'ক্যাটাগরি' : 'Category'}</th>
+              <th className="p-2 text-right">{language === 'bn' ? 'পরিমাণ (৳)' : 'Amount (BDT)'}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {expenses.map(e => (
+              <tr key={e.id} className="border-b">
+                <td className="p-2">{e.date}</td>
+                <td className="p-2">{e.title}</td>
+                <td className="p-2">{e.category.replace('_',' ')}</td>
+                <td className="p-2 text-right">{e.amount.toLocaleString()}</td>
+              </tr>
+            ))}
+            <tr className="border-t-2 font-bold">
+              <td colSpan={3} className="p-2 text-right">{language === 'bn' ? 'মোট' : 'Total'}</td>
+              <td className="p-2 text-right">{expenses.reduce((s, e) => s + e.amount, 0).toLocaleString()}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
     </div>

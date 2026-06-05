@@ -1907,7 +1907,7 @@ export default function Login({ onRegisterClick }: LoginProps) {
           </div>
           
           <div className="w-full pl-36 flex items-center overflow-hidden">
-            <div className="animate-marquee-scroll inline-block whitespace-nowrap text-xs font-semibold tracking-wide py-1">
+            <div className="animate-marquee-scroll inline-block whitespace-nowrap text-lg font-semibold tracking-wide py-1">
               {permanentNotices.map((notice, index) => (
                 <span key={notice.id} className="inline-flex items-center text-slate-200 hover:text-white">
                   <span className="font-extrabold text-[#D4AF37] uppercase font-mono">
@@ -2732,20 +2732,26 @@ export default function Login({ onRegisterClick }: LoginProps) {
 
         {/* RIGHT COLUMN: Ultra-Premium Security Login Panel Form */}
         <section id="login-panel-anchor" className="lg:col-span-5 xl:col-span-4 sticky top-24">
-          <div className="rounded-2xl border border-emerald-900/60 bg-neutral-900 p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+          <div className="rounded-3xl border-2 border-emerald-800/70 bg-gradient-to-b from-neutral-900 to-neutral-950 p-6 sm:p-8 shadow-[0_30px_70px_rgba(0,0,0,0.95),_inset_0_1px_2px_rgba(255,255,255,0.15),_0_0_100px_rgba(16,185,129,0.12)] hover:shadow-[0_45px_90px_rgba(0,0,0,1),_inset_0_1px_3px_rgba(255,255,255,0.25),_0_0_140px_rgba(212,175,55,0.25)] hover:border-[#D4AF37]/90 hover:-translate-y-2.5 transition-all duration-500 ease-out relative overflow-hidden group/login-card">
             
-            {/* watermark decoration */}
-            <span className="absolute -top-10 -left-10 h-32 w-32 bg-emerald-500/[0.02] rounded-full pointer-events-none" />
+            {/* 3D ambient radial glow backdrops */}
+            <span className="absolute -top-24 -left-24 h-48 w-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none transition-all duration-500 group-hover/login-card:bg-emerald-500/20" />
+            <span className="absolute -bottom-24 -right-24 h-48 w-48 bg-[#D4AF37]/5 rounded-full blur-3xl pointer-events-none transition-all duration-500 group-hover/login-card:bg-[#D4AF37]/15" />
+            
+            {/* Glossy linear overlay reflection */}
+            <div className="absolute top-0 left-0 w-full h-[150%] bg-gradient-to-b from-white/[0.03] via-transparent to-transparent -translate-y-1/2 pointer-events-none skew-y-12 transition-transform duration-700 group-hover/login-card:translate-y-[-40%]" />
 
-            <div className="text-center pb-6 border-b border-emerald-950">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-955 border border-amber-500/35 ring-4 ring-amber-500/5">
-                <Shield className="h-6 w-6 text-[#D4AF37] animate-pulse" />
+            <div className="text-center pb-6 border-b border-emerald-950/70">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-neutral-850 to-neutral-950 border-2 border-amber-500/50 shadow-[0_8px_20px_rgba(0,0,0,0.5),_inset_0_2px_4px_rgba(255,255,255,0.1)] ring-8 ring-amber-500/5 transform group-hover/login-card:scale-110 group-hover/login-card:rotate-[360deg] transition-all duration-700">
+                <Shield className="h-7 w-7 text-[#D4AF37] filter drop-shadow-[0_2px_8px_rgba(212,175,55,0.4)]" />
               </div>
-              <h2 className="mt-4 text-lg font-black tracking-tight text-white font-sans uppercase">
-                {language === 'bn' ? 'সুরক্ষিত সিস্টেমে প্রবেশ' : 'Secure Resident Sign-In'}
-              </h2>
-              <p className="mt-1 text-[10px] text-slate-400 font-mono uppercase tracking-widest leading-none">
-                {language === 'bn' ? 'খেতাসার, কুমিল্লা পোর্টালে স্বাগত' : 'Khetasar, Cumilla Portal Access'}
+              <div className="mt-4">
+                <h2 className="inline-block px-5 py-2 text-[18px] font-bold tracking-wide text-white bg-emerald-600 rounded-xl border border-emerald-500 shadow-lg font-sans uppercase">
+                  {language === 'bn' ? 'সুরক্ষিত সিস্টেমে প্রবেশ' : 'Secure Resident Sign-In'}
+                </h2>
+              </div>
+              <p className="mt-2 text-[16px] font-bold text-[#D4AF37] font-sans tracking-wide leading-relaxed filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+                {language === 'bn' ? 'খেতাসার, কুমিল্লা পোর্টালে স্বাগত' : 'Welcome to Khetasar, Cumilla Portal'}
               </p>
             </div>
 

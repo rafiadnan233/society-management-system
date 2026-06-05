@@ -182,6 +182,7 @@ export interface SocietyConfig {
   committeeMembersJson?: string;
   enableLateFee?: boolean;
   lateFeePercentage?: number;
+  monthlyExpenseBudget?: number;
 }
 
 export interface UserAccount {

@@ -234,7 +234,8 @@ const DEFAULT_CONFIG: SocietyConfig = {
       "flatNumber": "4B",
       "photoUrl": "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&h=200&fit=crop&crop=face"
     }
-  ])
+  ]),
+  monthlyExpenseBudget: 50000
 };
 
 const generateDefaultFlats = (): Flat[] => {

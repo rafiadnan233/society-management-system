@@ -140,7 +140,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
           
           {/* Overflow Frame with left padding preventing overlap */}
           <div className="w-full pl-36 flex items-center overflow-hidden">
-            <div className="animate-marquee-scroll inline-block whitespace-nowrap text-[20px] font-bold py-1 tracking-wide">
+            <div className="animate-marquee-scroll inline-block whitespace-nowrap text-lg font-bold py-1 tracking-wide">
               {permanentNotices.map((notice, index) => (
                 <span key={notice.id} className="inline-flex items-center text-slate-200 transition-colors hover:text-white">
                   <span 
