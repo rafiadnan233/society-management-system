@@ -167,6 +167,7 @@ export interface SocietyConfig {
   
   // Landing/Login page custom values
   building3dImg?: string;
+  building3dImagesJson?: string;
   building3dTitleEn?: string;
   building3dTitleBn?: string;
   building3dDescEn?: string;

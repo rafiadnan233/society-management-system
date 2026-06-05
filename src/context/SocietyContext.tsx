@@ -135,6 +135,7 @@ const DEFAULT_CONFIG: SocietyConfig = {
   
   // Landing/Login default values
   building3dImg: building3dImg,
+  building3dImagesJson: JSON.stringify([building3dImg]),
   building3dTitleEn: "Astha Twin Towers - Architectural Highlights",
   building3dTitleBn: "আস্থা টুইন টাওয়ার্স - স্থাপত্য মানদণ্ড",
   building3dDescEn: "Astha Twin Towers is Cumilla’s pioneer dual-tower premium luxury high-rise condominium complex located in Khetasar. Architected with high-strength triple glass structural facade, active safety protocols, earthquake resistance up to 7.8 Richter, 3 luxury spacious capsule elevators, and eco-friendly landscaping.",

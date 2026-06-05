@@ -3,8 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { googleSignIn } from '../lib/googleAuth';
+import React, { useState, useEffect } from 'react';
 import { db } from '../utils/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import building3dImg from '../assets/images/building_3d_view_1780387092893.png';
@@ -44,7 +43,6 @@ interface LoginProps {
 export default function Login({ onRegisterClick }: LoginProps) {
   const { 
     login, 
-    loginWithGoogle,
     userAccounts,
     updateUserPassword,
     language, 
@@ -78,10 +76,36 @@ export default function Login({ onRegisterClick }: LoginProps) {
 
   // Form Fields State: 3D Render
   const [valBuilding3dImg, setValBuilding3dImg] = useState('');
+  const [valBuilding3dImages, setValBuilding3dImages] = useState<string[]>([]);
+  const [valBuilding3dNewUrl, setValBuilding3dNewUrl] = useState('');
   const [valBuilding3dTitleEn, setValBuilding3dTitleEn] = useState('');
   const [valBuilding3dTitleBn, setValBuilding3dTitleBn] = useState('');
   const [valBuilding3dDescEn, setValBuilding3dDescEn] = useState('');
   const [valBuilding3dDescBn, setValBuilding3dDescBn] = useState('');
+  const [currentSlide3d, setCurrentSlide3d] = useState(0);
+
+  // Slideshow Logic for 3D Render Gallery
+  const parsed3dImages = React.useMemo(() => {
+    try {
+      if (config.building3dImagesJson) {
+        const arr = JSON.parse(config.building3dImagesJson);
+        if (Array.isArray(arr) && arr.length > 0) {
+          return arr;
+        }
+      }
+    } catch (e) {
+      console.error("Error parsing building3dImagesJson:", e);
+    }
+    return [config.building3dImg || building3dImg];
+  }, [config.building3dImagesJson, config.building3dImg]);
+
+  useEffect(() => {
+    if (parsed3dImages.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentSlide3d(prev => (prev + 1) % parsed3dImages.length);
+    }, 6000); // changes every 6s to sync seamlessly with the kenburnsZoom duration
+    return () => clearInterval(interval);
+  }, [parsed3dImages]);
 
   // Form Fields State: Construction Progress
   const [valConstructionImg, setValConstructionImg] = useState('');
@@ -163,27 +187,44 @@ export default function Login({ onRegisterClick }: LoginProps) {
     }, 7000);
 
     const brochureTitle = language === 'bn' 
-      ? 'আস্থা টুইন টাওয়ার্স - গর্ভমেন্ট-স্ট্যান্ডার্ড ডিজিটাল আবাসন ব্রোশিয়ার' 
-      : 'Astha Twin Towers - Corporate Digital Housing Portal Brochure';
+      ? 'আস্থা টুইন টাওয়ার্স - রাজকীয় আবাসন গাইডবুক ও ডিজিটাল ম্যানুয়াল' 
+      : 'Astha Twin Towers - Royal Architectural Legacy & Smart Directory';
 
     const timestamp = new Date().toLocaleString('en-US', { timeZone: 'UTC' });
 
+    // Generate high-fidelity image grid HTML from all uploaded 3D slides
+    const galleryHtml = parsed3dImages.map((imgUrl, index) => `
+      <div class="gallery-card">
+        <div class="gallery-photo-wrapper">
+          <img src="${imgUrl}" alt="Architecture Render ${index + 1}" class="gallery-photo" />
+        </div>
+        <div class="gallery-caption">
+          <strong>Exhibit ${index + 1}:</strong> ${
+            language === 'bn' 
+              ? `আস্থা টুইন টাওয়ার্স প্রজেক্টের প্রস্তাবিত স্থাপত্য চিত্র ${index + 1}` 
+              : `Official architectural rendering model showcase, figure ${index + 1}`
+          }
+        </div>
+      </div>
+    `).join('');
+
     const htmlContent = `<!DOCTYPE html>
-<html lang="bn">
+<html lang="${language}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${brochureTitle}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,500;0,650;0,700;1,400&display=swap" rel="stylesheet">
   <style>
     :root {
-      --primary: #022c22;
-      --secondary: #064e3b;
-      --gold: #b45309;
-      --gold-light: #fef3c7;
-      --dark: #0f172a;
-      --light: #f8fafc;
-      --border: #e2e8f0;
+      --primary: #0b221a;
+      --secondary: #123524;
+      --accent: #926a27;
+      --tan: #ebd9b4;
+      --vellum: #fdfbf7;
+      --dark-text: #1d2925;
+      --light-text: #f1ebd9;
+      --gold-border: #d4af37;
     }
     
     * {
@@ -194,383 +235,597 @@ export default function Login({ onRegisterClick }: LoginProps) {
 
     body {
       font-family: 'Hind Siliguri', 'Inter', sans-serif;
-      background-color: #111827;
-      color: #f3f4f6;
+      background-color: #0b110e;
+      color: #faf6eb;
       line-height: 1.6;
-      padding: 40px 20px;
+      padding: 30px 15px;
       display: flex;
       flex-direction: column;
       align-items: center;
       min-height: 100vh;
     }
 
-    /* Screen Reader Mockup Controls */
-    .screen-header-control {
+    /* Professional Floating Reader Console */
+    .reader-console {
       width: 100%;
-      max-width: 900px;
-      background: linear-gradient(135deg, #022c22 0%, #064e3b 100%);
-      border: 1px solid #d4af37;
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 25px;
+      max-width: 950px;
+      background: linear-gradient(145deg, #0b221a 0%, #163a2b 100%);
+      border: 2px solid var(--accent);
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 30px;
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      flex-direction: column;
+      gap: 15px;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+    }
+    
+    @media (min-width: 640px) {
+      .reader-console {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+      }
     }
 
-    .screen-header-control h2 {
-      font-size: 14px;
+    .console-text h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 16px;
+      font-weight: 700;
       color: #fff;
-      margin-bottom: 4px;
+      margin-bottom: 5px;
+      letter-spacing: 0.5px;
     }
 
-    .screen-header-control p {
+    .console-text p {
+      font-size: 11.5px;
+      color: #a3bfb2;
+    }
+
+    .console-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .btn-action {
+      background: linear-gradient(to bottom, #d4af37, #af8d23);
+      color: #0b221a;
+      border: 1px solid #ffe89d;
+      padding: 10px 18px;
       font-size: 11px;
-      color: #a7f3d0;
-    }
-
-    .btn-print {
-      background-color: #d4af37;
-      color: #022c22;
-      border: none;
-      padding: 10px 20px;
-      font-size: 12px;
-      font-weight: bold;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1px;
       border-radius: 6px;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 8px;
-      transition: all 0.2s ease;
-      box-shadow: 0 4px 10px rgba(212, 175, 55, 0.3);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 5x 15px rgba(212, 175, 55, 0.35);
     }
 
-    .btn-print:hover {
-      background-color: #ffffff;
-      transform: translateY(-1px);
-    }
-
-    /* A4 Portrait Brochure Wrapper */
-    .brochure-container {
+    .btn-action:hover {
       background: #ffffff;
-      color: #0f172a;
+      color: #0b221a;
+      border-color: #ffffff;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(255,255,255,0.4);
+    }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.06);
+      color: #f1ebd9;
+      border: 1px solid rgba(255,255,255,0.15);
+      padding: 10px 18px;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.15);
+    }
+
+    /* THE ROYAL BOOKLET SHEETS */
+    .booklet-container {
+      background-color: var(--vellum);
+      color: var(--dark-text);
       width: 100%;
-      max-width: 900px;
-      padding: 60px 80px;
-      border-radius: 8px;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      max-width: 950px;
+      border-radius: 4px;
+      box-shadow: 0 35px 80px rgba(0,0,0,0.8), inset 0 0 40px rgba(84, 61, 23, 0.08);
+      position: relative;
+      border: 1px solid #e1d8c1;
     }
 
     .page-break {
       page-break-after: always;
       position: relative;
-    }
-
-    /* Cover Page Elements */
-    .cover {
+      padding: 70px 85px;
+      min-height: 1080px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      height: 980px;
-      padding: 40px 0;
+      box-sizing: border-box;
+      background-color: var(--vellum);
     }
 
-    .cover-top {
-      text-align: center;
-      border-bottom: 4px double #d4af37;
-      padding-bottom: 25px;
+    /* Double-line premium royal border wrapping around the text block */
+    .book-frame-overlay {
+      position: absolute;
+      top: 30px;
+      bottom: 30px;
+      left: 30px;
+      right: 30px;
+      border: 1px solid rgba(146, 106, 39, 0.25);
+      pointer-events: none;
+      z-index: 5;
+    }
+    
+    .book-frame-overlay::before {
+      content: "";
+      position: absolute;
+      top: 4px;
+      bottom: 4px;
+      left: 4px;
+      right: 4px;
+      border: 2.5px double var(--accent);
     }
 
-    .emblem {
-      margin: 0 auto 15px auto;
-      width: 80px;
-      height: 80px;
-      background-color: #022c22;
-      border: 2px solid #d4af37;
-      border-radius: 50%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      color: #d4af37;
-      font-weight: bold;
-      font-size: 24px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    /* Ornaments on corner of the pages */
+    .corner-ornament {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border: 1.5px solid var(--accent);
+      z-index: 10;
     }
+    .ornament-tl { top: 38px; left: 38px; border-right: none; border-bottom: none; }
+    .ornament-tr { top: 38px; right: 38px; border-left: none; border-bottom: none; }
+    .ornament-bl { bottom: 38px; left: 38px; border-right: none; border-top: none; }
+    .ornament-br { bottom: 38px; right: 38px; border-left: none; border-top: none; }
 
-    .cover-top h1 {
-      font-family: 'Playfair Display', serif;
-      font-size: 32px;
-      font-weight: 700;
-      color: #022c22;
-      letter-spacing: -0.5px;
-      margin-bottom: 10px;
-    }
-
-    .cover-top h3 {
-      font-size: 14px;
-      text-transform: uppercase;
-      letter-spacing: 3px;
-      color: #b45309;
-      font-weight: 700;
-    }
-
-    .cover-middle {
-      text-align: center;
-      margin: 80px 0;
-    }
-
-    .banner-badge {
-      display: inline-block;
-      background-color: #fef3c7;
-      color: #b45309;
-      font-weight: 700;
-      text-transform: uppercase;
-      font-size: 11px;
-      letter-spacing: 2.5px;
-      padding: 6px 16px;
-      border: 1.5px solid #f59e0b;
-      border-radius: 9999px;
-      margin-bottom: 30px;
-    }
-
-    .main-title {
-      font-size: 42px;
-      line-height: 1.25;
-      font-weight: 800;
-      color: #022c22;
-      margin-bottom: 20px;
-    }
-
-    .main-subtitle {
-      font-size: 18px;
-      color: #475569;
-      font-weight: 500;
-      max-width: 600px;
-      margin: 0 auto;
-    }
-
-    .building-graphic {
-      margin-top: 50px;
-      border: 1px solid #e2e8f0;
-      padding: 10px;
-      border-radius: 12px;
-      background-color: #f8fafc;
-    }
-
-    .cover-bottom {
-      border-top: 1px solid #cbd5e1;
-      padding-top: 30px;
+    /* RUNNING BOOK HEADERS AND FOOTERS */
+    .running-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 12px;
+      border-bottom: 1.5px solid var(--accent);
+      padding-bottom: 10px;
+      margin-bottom: 40px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--accent);
+      font-family: 'Inter', sans-serif;
+    }
+
+    .running-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid rgba(146, 106, 39, 0.2);
+      padding-top: 12px;
+      margin-top: 40px;
+      font-size: 11px;
+      font-family: monospace;
       color: #64748b;
     }
 
-    .curator-stamp {
-      font-weight: bold;
-      color: #022c22;
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-    }
-
-    /* Page Titles & Hierarchy */
-    .section-header {
-      border-bottom: 2px solid #022c22;
-      padding-bottom: 15px;
-      margin-bottom: 30px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .section-header h2 {
-      font-family: 'Playfair Display', serif;
-      font-size: 26px;
-      color: #022c22;
-      font-weight: bold;
-    }
-
-    .section-header .page-num {
-      font-family: monospace;
-      font-size: 14px;
-      color: #b45309;
-      font-weight: 700;
-    }
-
-    .toc-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 15px;
-      margin: 40px 0;
-    }
-
-    .toc-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      font-size: 14px;
-    }
-
-    .toc-name {
-      font-weight: 700;
-      color: #022c22;
-      flex-shrink: 0;
-    }
-
-    .toc-line {
-      flex-grow: 1;
-      border-bottom: 2px dotted #cbd5e1;
-      margin: 0 15px;
-    }
-
-    .toc-page {
-      font-weight: bold;
-      color: #b45309;
-    }
-
-    .welcome-card {
-      background-color: #f8fafc;
-      border-left: 4px solid #022c22;
-      padding: 25px;
-      border-radius: 0 12px 12px 0;
-      margin: 40px 0;
-    }
-
-    .welcome-card h4 {
-      font-size: 16px;
-      color: #022c22;
-      margin-bottom: 10px;
-      font-weight: 700;
-    }
-
-    /* Feature Module Pages Layout */
-    .module-sheet {
-      height: 980px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      padding: 30px 0;
-    }
-
-    .module-title-bar {
-      display: flex;
-      align-items: center;
-      gap: 15px;
-      margin-bottom: 25px;
-    }
-
-    .module-pin {
-      width: 45px;
-      height: 45px;
-      background-color: #fef3c7;
-      border: 1.5px solid #d4af37;
-      border-radius: 8px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-size: 20px;
-      color: #b45309;
-      font-weight: bold;
-    }
-
-    .module-meta {
-      font-size: 10px;
-      text-transform: uppercase;
-      font-weight: 700;
-      color: #b45309;
-      letter-spacing: 1.5px;
-    }
-
-    .module-title-bar h3 {
-      font-size: 20px;
-      font-weight: 800;
-      color: #022c22;
-    }
-
-    .block-desc {
-      background-color: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 22px;
-      font-size: 13.5px;
-      color: #334155;
-      line-height: 1.7;
-      margin-bottom: 30px;
-    }
-
-    .subtitle-label {
-      font-size: 11px;
-      text-transform: uppercase;
-      font-weight: 700;
-      color: #022c22;
-      letter-spacing: 2px;
-      margin-bottom: 12px;
-      display: block;
-      border-left: 2.5px solid #b45309;
-      padding-left: 10px;
-    }
-
-    .benefit-list {
-      list-style-type: none;
-      margin-bottom: 35px;
-    }
-
-    .benefit-list li {
-      position: relative;
-      padding-left: 30px;
-      margin-bottom: 15px;
-      font-size: 13px;
-      color: #1e293b;
-      font-weight: 500;
-    }
-
-    .benefit-list li::before {
-      content: "✓";
-      position: absolute;
-      left: 0;
-      top: -2px;
-      width: 20px;
-      height: 20px;
-      background-color: #ecfdf5;
-      color: #059669;
-      border: 1px solid #a7f3d0;
+    .page-number {
+      font-size: 12px;
+      font-weight: 850;
+      color: var(--accent);
+      background: #fdf2d6;
+      border: 1px solid var(--accent);
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
       display: flex;
       justify-content: center;
       align-items: center;
+      font-family: monospace;
+    }
+
+    /* COVER BLOCK STYLE (CHAPTER 1 - MASTER JACKET) */
+    .cover-page {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      height: 1080px;
+      padding: 90px 70px;
+      text-align: center;
+    }
+
+    .spine-crest {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .crest-icon {
+      width: 90px;
+      height: 90px;
+      border: 3.5px double var(--accent);
+      background-color: var(--primary);
+      border-radius: 50%;
+      color: var(--gold-border);
+      font-weight: 900;
+      font-size: 26px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 8px 25px rgba(11, 34, 26, 0.25);
+      font-family: 'Playfair Display', serif;
+      letter-spacing: 1px;
+    }
+
+    .crest-subtitle {
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      color: var(--accent);
+      font-weight: 800;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .cover-midsection {
+      width: 100%;
+      max-width: 680px;
+      margin: 50px 0;
+    }
+
+    .cover-midsection .badge {
+      display: inline-block;
+      border: 1px solid var(--accent);
+      background-color: rgba(146, 106, 39, 0.08);
+      color: var(--accent);
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      padding: 8px 22px;
+      border-radius: 4px;
+      margin-bottom: 30px;
+    }
+
+    .cover-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 40px;
+      font-weight: 700;
+      color: var(--primary);
+      line-height: 1.25;
+      margin-bottom: 24px;
+    }
+
+    .cover-subtitle {
+      font-size: 15.5px;
+      color: #3f5e52;
+      font-weight: 500;
+      line-height: 1.7;
+      max-width: 580px;
+      margin: 0 auto;
+    }
+
+    .cover-graphic-holder {
+      margin-top: 45px;
+      background: #ffffff;
+      border: 1px solid #e5dec9;
+      padding: 4px;
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(84, 61, 23, 0.06);
+      overflow: hidden;
+      aspect-ratio: 16/8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .cover-graphic-holder img {
+      width: 100%;
+      height: 100%;
+      object-cover: cover;
+    }
+
+    .spine-bottom {
+      border-top: 1px solid rgba(146, 106, 39, 0.18);
+      width: 100%;
+      padding-top: 25px;
+      display: flex;
+      justify-content: space-between;
       font-size: 11px;
+      font-family: 'Inter', sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #4b6156;
+      font-weight: 600;
+    }
+
+    /* TABLE OF CONTENTS GRAPHIC DOTS */
+    .toc-block {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      margin: 35px 0;
+    }
+
+    .toc-row {
+      display: flex;
+      align-items: baseline;
+      font-size: 13.5px;
+    }
+
+    .toc-label {
+      font-weight: 700;
+      color: var(--primary);
+      flex-shrink: 0;
+    }
+
+    .toc-dots {
+      flex-grow: 1;
+      border-bottom: 2px dotted rgba(146, 106, 39, 0.3);
+      margin: 0 12px;
+    }
+
+    .toc-index-num {
+      font-weight: bold;
+      color: var(--accent);
+      font-family: monospace;
+    }
+
+    /* EDITORIAL DROP CAP CHAPTER STYLES */
+    .editorial-quote {
+      font-family: 'Playfair Display', serif;
+      font-style: italic;
+      font-size: 16px;
+      color: var(--accent);
+      border-left: 3.5px solid var(--accent);
+      padding-left: 20px;
+      margin: 30px 0;
+      line-height: 1.6;
+    }
+
+    .chapter-heading-group {
+      margin-bottom: 30px;
+    }
+
+    .chapter-num {
+      font-family: 'Playfair Display', serif;
+      font-size: 14px;
+      text-transform: uppercase;
+      color: var(--accent);
+      letter-spacing: 2.5px;
+      font-weight: 700;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .chapter-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .chapter-body-p {
+      font-size: 13.5px;
+      color: #273b31;
+      text-align: justify;
+      margin-bottom: 20px;
+      line-height: 1.7;
+    }
+
+    /* Beautiful Drop Cap */
+    .chapter-body-p::first-letter {
+      float: left;
+      font-family: 'Playfair Display', serif;
+      font-size: 60px;
+      line-height: 48px;
+      padding-top: 4px;
+      padding-right: 8px;
+      padding-left: 3px;
+      font-weight: bold;
+      color: var(--primary);
+    }
+
+    .feature-sheet-grid {
+      display: grid;
+      grid-template-cols: 1fr;
+      gap: 25px;
+    }
+
+    .spec-block {
+      background-color: #fcfaf3;
+      border: 1px solid #e8deb8;
+      border-radius: 6px;
+      padding: 24px;
+    }
+
+    .spec-title-bar {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      border-bottom: 1.5px solid #e8deb8;
+      padding-bottom: 12px;
+      margin-bottom: 15px;
+    }
+
+    .spec-circle {
+      width: 36px;
+      height: 36px;
+      background-color: var(--primary);
+      border: 1.5px solid var(--accent);
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: var(--gold-border);
+      font-family: 'Playfair Display';
+      font-size: 15px;
       font-weight: bold;
     }
 
-    .value-card {
-      background: linear-gradient(to right, #fefbf3, #fffdf9);
-      border-left: 3px solid #b45309;
-      padding: 18px 24px;
+    .spec-subtitle {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--accent);
+      font-weight: 800;
+      font-family: 'Inter';
+    }
+
+    .spec-main-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--primary);
+    }
+
+    .editorial-h4 {
+      font-family: 'Playfair Display', serif;
+      font-size: 14.5px;
+      color: var(--primary);
+      font-weight: bold;
+      margin-bottom: 12px;
+      border-bottom: 1px solid rgba(146, 106, 39, 0.15);
+      padding-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .bullet-columns {
+      list-style-type: none;
+    }
+
+    .bullet-columns li {
+      position: relative;
+      padding-left: 26px;
+      margin-bottom: 14px;
+      font-size: 12.5px;
+      color: #273b31;
+      font-weight: 550;
+      line-height: 1.6;
+    }
+
+    .bullet-columns li::before {
+      content: "✦";
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .quote-footer-stamp {
+      background: linear-gradient(135deg, rgba(146, 106, 39, 0.05) 0%, rgba(146, 106, 39, 0.01) 100%);
+      border-left: 4px solid var(--accent);
+      padding: 16px 20px;
+      font-family: 'Playfair Display', serif;
+      font-style: italic;
+      color: #5d4a2d;
+      font-size: 13.5px;
+      line-height: 1.6;
       border-radius: 0 8px 8px 0;
       margin-top: auto;
     }
 
-    .value-card .label {
-      font-size: 9px;
-      text-transform: uppercase;
-      font-weight: 700;
-      color: #64748b;
-      letter-spacing: 1px;
-      margin-bottom: 4px;
-      display: block;
+    /* CHAPTER 8: GALLERIES DISPLAY SHEET */
+    .gallery-container {
+      display: grid;
+      grid-template-cols: 1fr;
+      gap: 20px;
+      margin: 25px 0;
+    }
+    
+    @media (min-width: 640px) {
+      .gallery-container {
+        grid-template-cols: 1fr 1fr;
+      }
     }
 
-    .value-card p {
-      font-family: 'Playfair Display', serif;
-      font-style: italic;
-      color: #b45309;
-      font-size: 14px;
-      font-weight: 600;
+    .gallery-card {
+      background: #ffffff;
+      border: 1px solid #e2dabf;
+      padding: 12px;
+      border-radius: 4px;
+      box-shadow: 0 6px 16px rgba(84, 61, 23, 0.04);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
 
-    /* Print Overrides */
+    .gallery-photo-wrapper {
+      width: 100%;
+      aspect-ratio: 16/10;
+      overflow: hidden;
+      border: 1.5px solid #eeeeee;
+      border-radius: 2px;
+      background-color: #000;
+    }
+
+    .gallery-photo {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: all 0.3s;
+    }
+
+    .gallery-caption {
+      font-size: 11px;
+      color: #4b6156;
+      line-height: 1.5;
+      font-family: 'Hind Siliguri', sans-serif;
+    }
+
+    /* BACK COVER EXQUISITE STYLING */
+    .back-cover {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      height: 1080px;
+      padding: 110px 70px;
+      text-align: center;
+    }
+
+    .back-cover-seal {
+      margin: 0 auto;
+      width: 120px;
+      height: 120px;
+      border: 3px double var(--accent);
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: var(--accent);
+      font-size: 13px;
+      font-family: 'Playfair Display';
+      font-weight: bold;
+      background: rgba(146, 106, 39, 0.05);
+    }
+
+    /* Color Presets Toggler via JS */
+    body.theme-white .booklet-container {
+      background-color: #ffffff;
+      color: #0b130e;
+    }
+    body.theme-white .page-break {
+      background-color: #ffffff;
+    }
+    body.theme-white .spec-block {
+      background-color: #fcfcfc;
+    }
+
+    /* PRINT RULES */
     @media print {
       body {
         background-color: #ffffff !important;
@@ -578,32 +833,40 @@ export default function Login({ onRegisterClick }: LoginProps) {
         margin: 0 !important;
       }
 
-      .screen-header-control {
+      .reader-console {
         display: none !important;
       }
 
-      .brochure-container {
+      .booklet-container {
         box-shadow: none !important;
         border: none !important;
         padding: 0 !important;
         max-width: 100% !important;
         width: 100% !important;
+        background-color: #ffffff !important;
       }
 
       .page-break {
         page-break-after: always !important;
-        display: block !important;
+        display: flex !important;
         height: 100vh !important;
+        min-height: 100%;
         box-sizing: border-box !important;
+        background-color: #ffffff !important;
+        padding: 60px 75px !important;
       }
 
-      .cover {
-        height: 100vh !important;
+      .book-frame-overlay {
+        top: 25px !important;
+        bottom: 25px !important;
+        left: 25px !important;
+        right: 25px !important;
       }
 
-      .module-sheet {
-        height: 100vh !important;
-      }
+      .ornament-tl { top: 33px; left: 33px; }
+      .ornament-tr { top: 33px; right: 33px; }
+      .ornament-bl { bottom: 33px; left: 33px; }
+      .ornament-br { bottom: 33px; right: 33px; }
 
       * {
         -webkit-print-color-adjust: exact !important;
@@ -614,385 +877,580 @@ export default function Login({ onRegisterClick }: LoginProps) {
 </head>
 <body>
 
-  <!-- Screen Reader Friendly Top Bar (hidden on paper) -->
-  <div class="screen-header-control">
-    <div>
-      <h2>📋 প্রফেশনাল ব্রোশিয়ার রেডি হয়েছে (Bilingual Digital Booklet)</h2>
-      <p>আপনার ব্রাউজারের প্রিন্টিং ফ্রেমওয়ার্ক নিচে ওপেন হয়েছে। PDF হিসেবে সেভ করার জন্য 'Save as PDF' অপশন নির্বাচন করুন।</p>
+  <!-- Floating Console at the Top (Hidden in Paper printing) -->
+  <div class="reader-console">
+    <div class="console-text">
+      <h2>📖 আভিজাত্য আবাসন স্মার্ট ম্যানুয়াল ও রাজকীয় বুকলেট রেডি!</h2>
+      <p>আপনার কাস্টমাইজড ৩ডি ছবি এবং মডিউল সহ কর্পোরেট স্ট্যান্ডার্ড স্যুভেনির বইটি পিডিএফ ফরম্যাটে সেভের জন্য তৈরি।</p>
     </div>
-    <button class="btn-print" onclick="window.print()">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-      <span>ম্যানুয়ালি প্রিন্ট করুন</span>
-    </button>
+    <div class="console-actions">
+      <button class="btn-secondary" onclick="document.body.classList.toggle('theme-white')">
+        🎨 পেপার টোন পরিবর্তন (Cream/White)
+      </button>
+      <button class="btn-action" onclick="window.print()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:2px;"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+        <span>সেভ / প্রিন্ট বুকলেট</span>
+      </button>
+    </div>
   </div>
 
-  <!-- Main Multi-Page Printable Brochure -->
-  <div class="brochure-container">
+  <!-- BOOK SHUTTLE CONTAINER -->
+  <div class="booklet-container" id="booklet-main">
     
-    <!-- PAGE 1: LUXURY COVER PAGE -->
-    <div class="page-break cover">
-      <div class="cover-top">
-        <div class="emblem">ATT</div>
-        <h1>ASTHA TWIN TOWERS</h1>
-        <h3>Premium Gated Luxury Condominium कॉम्प्लेक्स</h3>
+    <!-- ==============================================
+         PAGE 1: ROYAL COVER DESIGN (রাজকীয় প্রচ্ছদ)
+         ============================================== -->
+    <div class="page-break cover-page">
+      <div class="book-frame-overlay"></div>
+      <span class="corner-ornament ornament-tl"></span>
+      <span class="corner-ornament ornament-tr"></span>
+      <span class="corner-ornament ornament-bl"></span>
+      <span class="corner-ornament ornament-br"></span>
+
+      <div class="spine-crest">
+        <div class="crest-icon">ATT</div>
+        <div class="crest-subtitle">Astha Twin Towers</div>
       </div>
       
-      <div class="cover-middle">
-        <span class="banner-badge">Official Resident Manual</span>
-        <h2 class="main-title">ডিজিটাল আবাসনের স্মার্ট মানদণ্ড<br><span style="font-size: 26px; font-weight:500; font-family:'Playfair Display'; color: #475569;">Smart Resident Management & Operations Suite</span></h2>
-        <p class="main-subtitle">আস্থা টুইন টাওয়ার পরিচালনা কমিটির সম্পূর্ণ ডিজিটাল গাইডবুক ও ফিচার বুকলেট। সোসাইটির স্বয়ংক্রিয় হিসাব, নিরাপত্তা প্রাচীর ও দৈনন্দিন আধুনিক নাগরিক জীবনযাত্রার সহায়ক টুলস।</p>
+      <div class="cover-midsection">
+        <span class="badge">${language === 'bn' ? 'অফিসিয়াল ডিরেক্টরি ও ম্যানুয়াল' : 'Official Resident Glimpse'}</span>
+        <h1 class="cover-title">
+          ${language === 'bn' ? 'আবাসিক গাইডবুক ও ডিজিটাল স্যুভেনির' : 'The Blueprint of Architectural Grandeur'}
+        </h1>
+        <p class="cover-subtitle">
+          ${language === 'bn' 
+            ? 'আস্থা টুইন টাওয়ার্সের পরিচালনা ব্যবস্থা, আর্থিক স্বচ্ছতার রূপরেখা, বাসিন্দাদের নিয়মতান্ত্রিক অধিকার, এবং নজিরবিহীন দ্বৈত-সুরক্ষা পোর্টালের পরিপূর্ণ গাইডবুক।'
+            : 'An elegant chronicle of next-generation physical management, pristine budgeting balance, and automated security architectures designed for our premium residents.'}
+        </p>
         
-        <div class="building-graphic">
-          <div style="font-family: monospace; font-size: 11px; color:#64748b; padding:10px 0;">
-            [ ASTHA TWIN TOWERS • ARCHITECTURAL BLUEPRINT 2026 ]
+        <div class="cover-graphic-holder">
+          <img src="${parsed3dImages[0]}" alt="Luxury Twin Towers 3D Project" />
+        </div>
+      </div>
+      
+      <div class="spine-bottom">
+        <span>${language === 'bn' ? 'আস্থা টুইন টাওয়ার্স পরিষদ • ২০২৩-২০২৬' : 'ATT Association • Founded 2023'}</span>
+        <span>${language === 'bn' ? 'স্মার্ট আবাসন প্রকাশনা' : 'Smart Edition v4.2'}</span>
+      </div>
+    </div>
+
+
+    <!-- ==============================================
+         PAGE 2: DEDICATION & TABLE OF CONTENTS
+         ============================================== -->
+    <div class="page-break">
+      <div class="book-frame-overlay"></div>
+      <span class="corner-ornament ornament-tl"></span>
+      <span class="corner-ornament ornament-tr"></span>
+      <span class="corner-ornament ornament-bl"></span>
+      <span class="corner-ornament ornament-br"></span>
+
+      <div>
+        <div class="running-header">
+          <span>${language === 'bn' ? 'ভূমিকা ও ডাইরেক্টরি' : 'PREFACE & INDEX'}</span>
+          <span>Chapter I</span>
+        </div>
+
+        <div class="chapter-heading-group">
+          <span class="chapter-num">Chapter I</span>
+          <h2 class="chapter-title">${language === 'bn' ? 'মহতী আবাসন সংকল্প ও সূচী' : 'The Visionary Legacy & Index'}</h2>
+        </div>
+
+        <p class="chapter-body-p">
+          ${language === 'bn' 
+            ? 'স ম্মানিত অধিবাসী ও সদস্যবৃন্দ, আস্থা টুইন টাওয়ার্স পরিচালনা পর্ষদের আন্তরিক অভ্যর্থনা গ্রহণ করুন। আমাদের এই সুরক্ষিত ও স্বয়ংক্রিয় ডিজিটাল টাওয়ার স্যুভেনির মূলত একটি বিজ্ঞানসম্মত অঙ্গীকার। আবাসন ব্যবস্থাপনার প্রাচীন ও বিশৃঙ্খল খাতা গুটিয়ে ডিজিটাল যুগের আধুনিক, কাগজহীন ও সততা সমৃদ্ধ পোর্টাল প্রতিষ্ঠা করাই ছিল আমাদের প্রথম উদ্দেশ্য। এই দৃষ্টিকোণে ৭টি প্রধান সোপানের সূচীমালা এখানে উপস্থাপিত হলো।'
+            : 'W elcome esteemed residents and guests to the official chronicle of Astha Twin Towers. This master manual stands as a pristine commitment toward next-generation automated hospitality and zero-compromise security protocols. By transition beyond fragmented accounting folders, our bespoke board guarantees a golden standard. Below is the layout roadmap of this sovereign guidelines.'}
+        </p>
+
+        <div class="toc-block">
+          <div class="toc-row">
+            <span class="toc-label">১. সদস্য রেজিস্ট্রি ও স্মার্ট প্রোফাইল (Resident Directory Panel)</span>
+            <span class="toc-dots"></span>
+            <span class="toc-index-num">Page 03</span>
+          </div>
+          <div class="toc-row">
+            <span class="toc-label">২. আর্থিক হিসাবনিকাশ ও ফি আদায় (Anti-Fraud Treasury Engine)</span>
+            <span class="toc-dots"></span>
+            <span class="toc-index-num">Page 04</span>
+          </div>
+          <div class="toc-row">
+            <span class="toc-label">৩. ডিজিটাল নোটিশবোর্ড ও লাইভ অ্যালার্ট (Smart Bulletins Feed)</span>
+            <span class="toc-dots"></span>
+            <span class="toc-index-num">Page 05</span>
+          </div>
+          <div class="toc-row">
+            <span class="toc-label">৪. ভিজিটর ও গেস্ট ম্যানেজমেন্ট (Front-Gate Logbook Entry)</span>
+            <span class="toc-dots"></span>
+            <span class="toc-index-num">Page 06</span>
+          </div>
+          <div class="toc-row">
+            <span class="toc-label">৫. কমন স্পেস সমাধান ও সমস্যা বক্স (Physical Incident Helpdesk)</span>
+            <span class="toc-dots"></span>
+            <span class="toc-index-num">Page 07</span>
+          </div>
+          <div class="toc-row">
+            <span class="toc-label">৬. সিকিউরিটি স্টাফ হাজিরা রেজিস্টার (Duty Guards Shift Log)</span>
+            <span class="toc-dots"></span>
+            <span class="toc-index-num">Page 08</span>
+          </div>
+          <div class="toc-row">
+            <span class="toc-label">৭. প্রজেক্ট ডেভেলপমেন্ট ও নির্মাণ খরচ ট্র্যাকার (Development Auditing)</span>
+            <span class="toc-dots"></span>
+            <span class="toc-index-num">Page 09</span>
+          </div>
+          <div class="toc-row">
+            <span class="toc-label">৮. ৩ডি স্থাপত্যচিত্র ও প্রজেক্ট গ্যালারি (3D Architectural Exhibits)</span>
+            <span class="toc-dots"></span>
+            <span class="toc-index-num">Page 10</span>
           </div>
         </div>
       </div>
-      
-      <div class="cover-bottom">
-        <span>সংকলক: আস্থা টুইন টাওয়ার্স পরিচালনা পর্ষদ</span>
-        <span class="curator-stamp">Security & Transparency • 2026</span>
+
+      <div class="quote-footer-stamp">
+         "একটি সভ্য আবাসনের আস্থার প্রধান শর্ত হচ্ছে প্রতিটি তথ্য ও হিসাবের পরম স্বচ্ছতা।"
+      </div>
+
+      <div class="running-footer">
+        <span>ATT Association Guidebook</span>
+        <span>Page 02</span>
       </div>
     </div>
 
-    <!-- PAGE 2: TABLE OF CONTENTS & PRESIDENT'S NOTE -->
-    <div class="page-break" style="padding: 40px 0;">
-      <div class="section-header">
-        <h2>সূচিপত্র ও ডাইরেক্টরি গাইড (Table of Contents)</h2>
-        <span class="page-num">Page 02</span>
+
+    <!-- ==============================================
+         PAGE 3: CHAPTER 1: MEMBERS
+         ============================================== -->
+    <div class="page-break">
+      <div class="book-frame-overlay"></div>
+      <span class="corner-ornament ornament-tl"></span>
+      <span class="corner-ornament ornament-tr"></span>
+      <span class="corner-ornament ornament-bl"></span>
+      <span class="corner-ornament ornament-br"></span>
+
+      <div>
+        <div class="running-header">
+          <span>${language === 'bn' ? 'সদস্য রেজিস্ট্রি ও প্রোফাইল' : 'RESIDENT DIRECTORY'}</span>
+          <span>Chapter II</span>
+        </div>
+
+        <div class="chapter-heading-group">
+          <span class="chapter-num">Chapter II</span>
+          <h2 class="chapter-title">${language === 'bn' ? '০১. সদস্য রেজিস্ট্রি ও স্মার্ট প্রোফাইল' : '01. Resident Directory & Profiles'}</h2>
+        </div>
+
+        <p class="chapter-body-p">
+          ${language === 'bn'
+            ? 'আ স্থা টুইন টাওয়ার্সের (ব্লক এ এবং বি) প্রতিটি ফ্ল্যাটের মালিক, ভাড়াটিয়া এবং সম্মানিত পরিবারের সদস্যদের নিয়ে গড়ে তোলা হয়েছে আমাদের সেন্ট্রাল আবাসন ডেটাবেইস। এর মাধ্যমে আবাসন ডিরেক্টরি স্বয়ংক্রিয়ভাবে রিয়েল-টাইমে আপডেট রাখা যায়। প্রতিটি পরিবারের ছবি, ইমেইল এবং ফ্ল্যাটের বিবরণ কঠোর এডমিন ভেরিফিকেশন প্যানেল দিয়ে সুরক্ষিত থাকে।'
+            : 'M apping block arrays across Block A and Block B, this directory preserves comprehensive details on all tenants, flat owners, and respective co-occupants. Backed by rigorous cryptography and administration validation gates, this resident matrix restricts arbitrary profile queries to insulate owner privacy and keep high security standards.'}
+        </p>
+
+        <div class="feature-sheet-grid">
+          <div class="spec-block">
+            <div class="spec-title-bar">
+              <div class="spec-circle">01</div>
+              <div>
+                <span class="spec-subtitle">Active Directory Matrix</span>
+                <div class="spec-main-title">${language === 'bn' ? 'অধিবাসীদের জন্য প্রত্যক্ষ উপকারিতাসমূহ' : 'Direct Advantages for Residents'}</div>
+              </div>
+            </div>
+            
+            <ul class="bullet-columns">
+              <li>{language === 'bn' ? 'ফ্ল্যাট ভিত্তিক ডিজিটাল ডেটা থাকায় ওনারশিপ বদল ও হিসেব হস্তান্তর অত্যন্ত মসৃণ।' : 'Flat-based immutable indexing ensures rapid tenancy changes and keys transfers.'}</li>
+              <li>{language === 'bn' ? 'জরুরি মুহূর্তে বা অগ্নিকাণ্ডের মত বিপদে যেকোনো প্রতিবেশীর সাথে তাৎক্ষণিক দূরবর্তী যোগাযোগ।' : 'Enables immediate cross-connection with floor neighbors during localized emergencies.'}</li>
+              <li>{language === 'bn' ? 'এডমিন ভেরিফিকেশন কোডের কারণে অননুমোদিত কেউ ডিরেক্টরি তথ্য দেখতে পারে না।' : 'Airtight access boundaries limit general database visibility to validated residents only.'}</li>
+            </ul>
+          </div>
+        </div>
       </div>
 
-      <p style="font-size:13.5px; color:#334155; margin-bottom: 25px;">
-        সম্মানিত আস্থা টুইন টাওয়ার্সের বাসিন্দা ও সদস্যবৃন্দ, আমাদের এই স্মার্ট ডিজিটাল কাস্টম পোর্টাল আপনার দৈনন্দিন আবাসন জীবনকে ঝামেলাহীন, নিরাপদ ও অর্থনৈতিকভাবে শতভাগ স্বচ্ছ করার জন্য একটি বিজ্ঞানসম্মত সমাধান। এই গাইডবুকে থাকা ০৭টি মূল আর্কিটেকচারাল ফিচার ইনডেক্স থেকে আপনি পোর্টালের কিকি সুবিধা পাবেন তা সুন্দরভাবে সাজানো রয়েছে।
-      </p>
+      <div class="quote-footer-stamp">
+        "তথ্য সমৃদ্ধ ডিরেক্টরি আমাদের বাসিন্দাদের মধ্যে পারস্পরিক ভ্রাতৃত্বের এক মজবুত বন্ধন স্থাপন করে।"
+      </div>
 
-      <div class="toc-grid">
-        <div class="toc-item">
-          <span class="toc-name">১. সদস্য রেজিস্ট্রি ও স্মার্ট প্রোফাইল (Resident Directory & Family Registry)</span>
-          <span class="toc-line"></span>
-          <span class="toc-page">Page 03</span>
+      <div class="running-footer">
+        <span>ATT Smart Resident Manuel</span>
+        <div class="page-number">03</div>
+      </div>
+    </div>
+
+
+    <!-- ==============================================
+         PAGE 4: CHAPTER 2: FINANCE
+         ============================================== -->
+    <div class="page-break">
+      <div class="book-frame-overlay"></div>
+      <span class="corner-ornament ornament-tl"></span>
+      <span class="corner-ornament ornament-tr"></span>
+      <span class="corner-ornament ornament-bl"></span>
+      <span class="corner-ornament ornament-br"></span>
+
+      <div>
+        <div class="running-header">
+          <span>${language === 'bn' ? 'আর্থিক হিসাবনিকাশ ও ফান্ড' : 'LEDGER & BUDGETING'}</span>
+          <span>Chapter III</span>
         </div>
-        <div class="toc-item">
-          <span class="toc-name">২. আর্থিক হিসাবনিকাশ ও ফি আদায় (Automated Ledger & Payments)</span>
-          <span class="toc-line"></span>
-          <span class="toc-page">Page 04</span>
+
+        <div class="chapter-heading-group">
+          <span class="chapter-num">Chapter III</span>
+          <h2 class="chapter-title">${language === 'bn' ? '০২. আর্থিক হিসাবনিকাশ ও ফি আদায়' : '02. Anti-Fraud Corporate Ledger'}</h2>
         </div>
-        <div class="toc-item">
-          <span class="toc-name">৩. ডিজিটাল নোটিশবোর্ড ও লাইভ অ্যালার্ট (Smart Bulletins & Alerts)</span>
-          <span class="toc-line"></span>
-          <span class="toc-page">Page 05</span>
-        </div>
-        <div class="toc-item">
-          <span class="toc-name">৪. ভিজিটর ও গেস্ট ম্যানেজমেন্ট (Front-Gate Digital Logbook)</span>
-          <span class="toc-line"></span>
-          <span class="toc-page">Page 06</span>
-        </div>
-        <div class="toc-item">
-          <span class="toc-name">৫. কমন স্পেস অভিযোগ ও সমাধান (Incident Desk & Care Portal)</span>
-          <span class="toc-line"></span>
-          <span class="toc-page">Page 07</span>
-        </div>
-        <div class="toc-item">
-          <span class="toc-name">৬. সিকিউরিটি স্টাফ ও শিফট রেজিস্টার (Duty Guards Operations Hub)</span>
-          <span class="toc-line"></span>
-          <span class="toc-page">Page 08</span>
-        </div>
-        <div class="toc-item">
-          <span class="toc-name">৭. প্রজেক্ট ডেভেলপমেন্ট ও নির্মাণ খরচ ট্র্যাকার (Blueprints Expense audit)</span>
-          <span class="toc-line"></span>
-          <span class="toc-page">Page 09</span>
+
+        <p class="chapter-body-p">
+          ${language === 'bn'
+            ? 'আ পনার কষ্টার্জিত পরিশোধিত টাকার প্রতি পাই-পয়সার নিরাপত্তা দেওয়া আমাদের পবিত্র দায়িত্ব। সে লক্ষ্যে সনাতনী খাতা উড্রে করে এটি রিয়েল-টাইমে প্রতি মাসের মেইনটেন্যান্স ফি, জেনারেটর ডিজেল ফান্ড, পানির বিল, এবং বিশেষ উৎসবের চাঁদা অটো-ক্যালকুলেশন করে। অধিবাসীরা নিজেদের বকেয়া দেখে সরাসরি বিকাশ, নগদ বা রকেটের মাধ্যমে পে করতে পারেন।'
+            : 'F inancially transparent bookkeeping forms the bedrock of our trust. This custom banking ledger generates automatic monthly invoices, diesel reserve pools, and special event contributions. Residents get instant notifications of overdue amounts and have immediate capability to securely download premium receipts.'}
+        </p>
+
+        <div class="feature-sheet-grid">
+          <div class="spec-block">
+            <div class="spec-title-bar">
+              <div class="spec-circle">02</div>
+              <div>
+                <span class="spec-subtitle">Prisinte Accounting Model</span>
+                <div class="spec-main-title">${language === 'bn' ? 'ডিজিটাল হিসাবের পরম উপকারিতাসমূহ' : 'Direct Advantages for Residents'}</div>
+              </div>
+            </div>
+            
+            <ul class="bullet-columns">
+              <li>{language === 'bn' ? 'বাসিন্দাগণ তাদের মোট বকেয়া, অগ্রিম এবং অতীত রসিদের কপি সবসময় প্রিন্ট করতে পারেন।' : 'Residents maintain 24/7 access to real-time statement sheets, advance credits, and PDFs.'}</li>
+              <li>{language === 'bn' ? 'ম্যানুয়াল ডাবল-এন্ট্রি ক্যালকুলেশন ভুলের অবসান ঘটে এবং ক্যাশবুক স্বচ্ছ থাকে।' : 'Eliminates mathematical ledger discrepancies across all general ledger books.'}</li>
+              <li>{language === 'bn' ? 'ফি পরিশোধ হওয়া মাত্র মোবাইলে রশিদ কনফার্মেশনের ফলে জালিয়াতি বন্ধ হয়।' : 'Immediate billing generation logs safeguard payments from internal cash leakage.'}</li>
+            </ul>
+          </div>
         </div>
       </div>
 
-      <div class="welcome-card">
-        <h4>✦ আস্থার ডিজিটাল রূপরেখা (Core Objective)</h4>
-        <p style="font-size: 13px; color:#475569; line-height: 1.6;">
-          এটি কুমিল্লার খেতাসারে নির্মিত দ্বৈত টাওয়ার বিশিষ্ট প্রথম আধুনিক গিজার কমপ্লেক্সেরই একটি ডিজিটাল প্রতিরূপ (Digital Twin)। আবাসন রক্ষণাবেক্ষণের সনাতনী ফাইল খাতা, ভুল-ত্রুটির হিসাবের ঝুঁকি এবং যোগাযোগের গ্যাপ চিরতরে বিদায় দিতে আমাদের এই সম্মিলিত প্রচেষ্টা।
+      <div class="quote-footer-stamp">
+        "হিসাব যখন শতভাগ উন্মুক্ত ও ডিজিটাল, তখন পারস্পরিক আস্থার পরিধি অনেক সুদূরপ্রসারী।"
+      </div>
+
+      <div class="running-footer">
+        <span>ATT Smart Resident Manuel</span>
+        <div class="page-number">04</div>
+      </div>
+    </div>
+
+
+    <!-- ==============================================
+         PAGE 5: CHAPTER 3: NOTICES
+         ============================================== -->
+    <div class="page-break">
+      <div class="book-frame-overlay"></div>
+      <span class="corner-ornament ornament-tl"></span>
+      <span class="corner-ornament ornament-tr"></span>
+      <span class="corner-ornament ornament-bl"></span>
+      <span class="corner-ornament ornament-br"></span>
+
+      <div>
+        <div class="running-header">
+          <span>${language === 'bn' ? 'স্মার্ট ডিজিটাল নোটিশবোর্ড' : 'DIGITAL BULLETIN FEED'}</span>
+          <span>Chapter IV</span>
+        </div>
+
+
+    <!-- ==============================================
+         PAGE 6: CHAPTER 4: VISITORS
+         ============================================== -->
+    <div class="page-break">
+      <div class="book-frame-overlay"></div>
+      <span class="corner-ornament ornament-tl"></span>
+      <span class="corner-ornament ornament-tr"></span>
+      <span class="corner-ornament ornament-bl"></span>
+      <span class="corner-ornament ornament-br"></span>
+
+      <div>
+        <div class="running-header">
+          <span>${language === 'bn' ? 'গেট ও গেস্ট প্রটোকল' : 'GATE VISITOR LOGBOOK'}</span>
+          <span>Chapter V</span>
+        </div>
+
+        <div class="chapter-heading-group">
+          <span class="chapter-num">Chapter V</span>
+          <h2 class="chapter-title">${language === 'bn' ? '০৪. ভিজিটর ও অতিথি বুক এন্ট্রি' : '04. Gate Visitor Entry & Logbook'}</h2>
+        </div>
+
+        <p class="chapter-body-p">
+          ${language === 'bn'
+            ? 'আ বাসনে অনধিকার প্রবেশ ঠেকানো এবং প্রতিটি ভিজিটর, গাড়ি, হোম ডেলিভারি বা কাজের বুয়াদের নিরাপত্তা পরীক্ষা নিশ্চিত করতে এই গেট রেজিস্ট্রি। মেইন ফটকের নিরাপত্তার দায়িত্বে থাকা গার্ড যেকোনো মানুষের এন্ট্রি করা মাত্র সংশ্লিষ্ট ফ্ল্যাটের বাসিন্দাদের ফোনে লাইভ নোটিশ চলে যায়।'
+            : 'F acilitating airtight security starts at the boundary threshold. Using our live entry-tracker, duty guards perform gate clearance procedures, photo uploads, and identity verifications of delivery executives, house helpers, and guest vehicles, directly notifying respective flats.'}
+        </p>
+
+        <div class="feature-sheet-grid">
+          <div class="spec-block">
+            <div class="spec-title-bar">
+              <div class="spec-circle">04</div>
+              <div>
+                <span class="spec-subtitle">Armed Sentry Gatekeeping</span>
+                <div class="spec-main-title">${language === 'bn' ? 'গেটের ডিজিটাল কার্যকারিতা' : 'Direct Advantages for Residents'}</div>
+              </div>
+            </div>
+            
+            <ul class="bullet-columns">
+              <li>${language === 'bn' ? 'আপনার ফ্ল্যাটে আসা প্রতিটি ফুড ডেলিভারি বা কুরিয়ার বয়দের রিয়েল-টাইম লগ ট্র্যাকিং।' : 'Every food courier or courier executive receives active, localized tracking parameters.'}</li>
+              <li>${language === 'bn' ? 'অনাকাঙ্क्षित মানুষের অননুমোদিত প্রবেশ কড়াভাবে নিয়ন্ত্রণ।' : 'Strict gates procedures prohibit non-authorized solicitors from wandering floor corridors.'}</li>
+              <li>${language === 'bn' ? 'গেটের সিসিটিভি ছবির সাথে প্রহরীর ডিজিটাল এন্ট্রির নিখুঁত মিল বজায় রাখা।' : 'Correlates security guard logging with surveillance cameras to check records perfectly.'}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="quote-footer-stamp">
+         "যে আবাসনে কড়া প্রহরা আর ডিজিটাল গেট কিপার রয়েছে, সেখানে প্রতিটি রাত নিশ্চিন্ত ঘুমে কাটে।"
+      </div>
+
+      <div class="running-footer">
+        <span>ATT Smart Resident Manuel</span>
+        <div class="page-number">06</div>
+      </div>
+    </div>
+
+
+    <!-- ==============================================
+         PAGE 7: CHAPTER 5: COMPLAINTS
+         ============================================== -->
+    <div class="page-break">
+      <div class="book-frame-overlay"></div>
+      <span class="corner-ornament ornament-tl"></span>
+      <span class="corner-ornament ornament-tr"></span>
+      <span class="corner-ornament ornament-bl"></span>
+      <span class="corner-ornament ornament-br"></span>
+
+      <div>
+        <div class="running-header">
+          <span>${language === 'bn' ? 'অভিযোগ সমাধান ও সাপোর্ট' : 'INCIDENT HELPDESK'}</span>
+          <span>Chapter VI</span>
+        </div>
+
+        <div class="chapter-heading-group">
+          <span class="chapter-num">Chapter VI</span>
+          <h2 class="chapter-title">${language === 'bn' ? '০৫. মেরামত ও তাৎক্ষণিক অভিযোগ বক্স' : '05. Incident Desk & Diagnostics'}</h2>
+        </div>
+
+        <p class="chapter-body-p">
+          ${language === 'bn'
+            ? 'আ বাসনে বসবাস করতে গেলে লিফট বিকল হওয়া, ফ্লোরের লাইট নষ্ট হওয়া কিংবা কমন শাওয়ার বা বাথরুমের পানির লাইন ফেটে যাওয়ার মত ছোট-বড় সমস্যা হতে পারে। কিন্তু অনেক সময় উপযুক্ত মানুষ বা মেরামত কর্মীকে খুঁজে পাওয়া যায় না। আমাদের কেয়ার ডেস্কের অভিযোগ বাক্সে বাসিন্দারা যেকোনো ক্রটি ছবিসহ আপলোড করতে পারেন।'
+            : 'O wing to high complexity facilities, hardware wear and tear is inevitable. Be it gym equipment maintenance, lift malfunctions, or shared power line failures, the service ticketing hub manages repair requests smoothly. Residents submit descriptive complaints complete with photo attachments directly to maintenance engineers.'}
+        </p>
+
+        <div class="feature-sheet-grid">
+          <div class="spec-block">
+            <div class="spec-title-bar">
+              <div class="spec-circle">05</div>
+              <div>
+                <span class="spec-subtitle">Resident Care Protocols</span>
+                <div class="spec-main-title">${language === 'bn' ? 'মেরামত সেবার প্রকৃত সুবিধা' : 'Direct Advantages for Residents'}</div>
+              </div>
+            </div>
+            
+            <ul class="bullet-columns">
+              <li>${language === 'bn' ? 'আপনার জানানো সমস্যার বিপরীতে টিকিট জেনারেট হওয়া এবং তার লাইভ এডিটিং ট্র্যাক।' : 'Generate tickets and track mechanical repairs progress straight from the console.'}</li>
+              <li>${language === 'bn' ? 'কমিটি বা ইঞ্জিনিয়ারদের কাজের গাফিলতি বা এড়িয়ে যাওয়া চিরতরে বিদায়।' : 'Fosters massive committee accountability, preventing service tickets from being ignored.'}</li>
+              <li>${language === 'bn' ? 'দ্রুত সমাধান ও কাজের গুণগত রেটিং সরাসরি বাসিন্দার ড্যাশবোর্ডে প্রদান।' : 'Allows residents to submit satisfaction ratings upon successful closure of tasks.'}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="quote-footer-stamp">
+         "অভিযোগ যখন সরাসরি অ্যাকশনে রূপ নেয়, তখন আবাসনের প্রতিটি ইট-পাথরও কথা বলে।"
+      </div>
+
+      <div class="running-footer">
+        <span>ATT Smart Resident Manuel</span>
+        <div class="page-number">07</div>
+      </div>
+    </div>
+
+
+    <!-- ==============================================
+         PAGE 8: CHAPTER 6: STAFF
+         ============================================== -->
+    <div class="page-break">
+      <div class="book-frame-overlay"></div>
+      <span class="corner-ornament ornament-tl"></span>
+      <span class="corner-ornament ornament-tr"></span>
+      <span class="corner-ornament ornament-bl"></span>
+      <span class="corner-ornament ornament-br"></span>
+
+      <div>
+        <div class="running-header">
+          <span>${language === 'bn' ? 'নিরাপত্তা কর্মী ও শিফট ট্র্যাকিং' : 'STAFF WORKFLOW & ATTENDANCE'}</span>
+          <span>Chapter VII</span>
+        </div>
+
+        <div class="chapter-heading-group">
+          <span class="chapter-num">Chapter VII</span>
+          <h2 class="chapter-title">${language === 'bn' ? '০৬. নিরাপত্তা কর্মী ও শিফট রেজিস্টার' : '06. Security Staff Duty Register'}</h2>
+        </div>
+
+        <p class="chapter-body-p">
+          ${language === 'bn'
+            ? 'প ্রহরী ও কর্মীদের কর্মদক্ষতা নিশ্চিত করতে এই সার্ভিসটি তৈরি। এর মাধ্যমে গেট প্রহরী, সুইমিংপুল লাইফ গার্ড ও ইনструк্টরদের বায়োডাটা এবং প্রতিদিনের উপস্থিতি নিখুঁতভাবে সংরক্ষণ করা হয়। শিফট অনুযায়ী কে কখন ডিউটিতে এলো বা কার ছুটি ছিল তা ডাবল-চেক রেজিস্টারের মাধ্যমে স্বয়ংক্রিয়ভাবে হিসাব করা সম্ভব হয়।'
+            : 'F acilitating peak workforce output is non-negotiable for modern tower complexes. By incorporating attendance templates for security guards, sanitization crews, and pools monitors, this scheduler registers check-in and check-out stamps. It manages double-shift scheduling perfectly to handle critical guard switches without manual supervision.'}
+        </p>
+
+        <div class="feature-sheet-grid">
+          <div class="spec-block">
+            <div class="spec-title-bar">
+              <div class="spec-circle">06</div>
+              <div>
+                <span class="spec-subtitle">Workforce Operations Panel</span>
+                <div class="spec-main-title">${language === 'bn' ? 'কর্মী ব্যবস্থাপনার প্রধান সুবিধা' : 'Direct Advantages for Residents'}</div>
+              </div>
+            </div>
+            
+            <ul class="bullet-columns">
+              <li>${language === 'bn' ? 'দারোয়ান অন-ডিউটিতে ঘুমিয়ে পড়া বা অসঙ্গতিপূর্ণ কাজ শতভাগ এড়ানো সম্ভব।' : 'Keeps guards vigilant and provides an explicit paper trail of guard assignments.'}</li>
+              <li>${language === 'bn' ? 'উপস্থিতির ভিত্তিতে পারফরম্যান্স বোনাস নির্ধারণ ও মাস শেষে দ্রুত বেতন ক্লিয়ারিং।' : 'Aligns monthly pay stub logs to match true clock hours, easing payroll calculations.'}</li>
+              <li>${language === 'bn' ? 'যেকোনো গার্ডের নাম ও ফোন নম্বর ড্যাশবোর্ড থেকে তাৎক্ষণিকভাবে পাওয়ার সুবিধা।' : 'Grants direct calling options to reach designated security guards during midnight patrols.'}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="quote-footer-stamp">
+         "অনুগত কর্মী বাহিনী ও সুসংগঠিত শৃঙ্খলা আস্থার টাওয়ারকে কুমিল্লার সেরা আবাসন বানায়।"
+      </div>
+
+      <div class="running-footer">
+        <span>ATT Smart Resident Manuel</span>
+        <div class="page-number">08</div>
+      </div>
+    </div>
+
+
+    <!-- ==============================================
+         PAGE 9: CHAPTER 7: CONSTRUCTION
+         ============================================== -->
+    <div class="page-break">
+      <div class="book-frame-overlay"></div>
+      <span class="corner-ornament ornament-tl"></span>
+      <span class="corner-ornament ornament-tr"></span>
+      <span class="corner-ornament ornament-bl"></span>
+      <span class="corner-ornament ornament-br"></span>
+
+      <div>
+        <div class="running-header">
+          <span>${language === 'bn' ? 'নির্মাণ ও খরচের অডিট' : 'CONSTRUCTION TIMELINE & LEDGER'}</span>
+          <span>Chapter VIII</span>
+        </div>
+
+        <div class="chapter-heading-group">
+          <span class="chapter-num">Chapter VIII</span>
+          <h2 class="chapter-title">${language === 'bn' ? '০৭. প্রজেক্ট ডেভেলপমেন্ট ও নির্মাণ খরচ ট্র্যাকার' : '07. Development Growth & Expense Audit'}</h2>
+        </div>
+
+        <p class="chapter-body-p">
+          ${language === 'bn'
+            ? 'আ স্থা টুইন টাওয়ার্সের নির্মাণ কাজ ও গুণগত মান বৃদ্ধির প্রতিটি ধাপে কাজের লাইভ অগ্রগতি, ব্যয়কৃত রড-সিমেন্টের লেজার এবং সদস্যদের প্রদত্ত জমার পরিমাণ স্বচ্ছভাবে ট্র্যাক করতে আমাদের ডেভেলপমেন্ট লেজার প্রস্তুত করা হয়েছে। প্রতিটি ধাপে ঢালাইয়ের কাজ অগ্রগতি বা ফ্লোরের খরচ ড্যাশবোর্ড থেকেই পর্যবেক্ষণ করতে পারেন।'
+            : 'F ull audit logs of physical growth keep everyone unified. The growth-meter publishes real-time construction phase percentages, raw materials ledger balance (such as cement, high tensile rebar blocks), and logs of cumulative investments contributed by the partner members, ensuring complete development alignment.'}
+        </p>
+
+        <div class="feature-sheet-grid">
+          <div class="spec-block">
+            <div class="spec-title-bar">
+              <div class="spec-circle">07</div>
+              <div>
+                <span class="spec-subtitle">Structural Development Ledger</span>
+                <div class="spec-main-title">${language === 'bn' ? 'নির্মাণ খরচের প্রধান সুবিধা' : 'Direct Advantages for Residents'}</div>
+              </div>
+            </div>
+            
+            <ul class="bullet-columns">
+              <li>${language === 'bn' ? 'প্রজেক্টের কাজের প্রকৃত অগ্রগতি ছবির মাধ্যমে কুমিল্লা ও বিশ্বব্যাপী ঘরে বসেই দেখার সুযোগ।' : 'Tracks physical foundation steps via images, enabling virtual reviews globally.'}</li>
+              <li>${language === 'bn' ? 'আইটেম অনুযায়ী রড, সিমেন্ট ও সাইট মেটেরিয়াল কেনার খরচের বিস্তারিত হিসাব।' : 'Maintains transparent materials records, guarding allocations against inflation trends.'}</li>
+              <li>${language === 'bn' ? 'সম্মিলিত কাজের গতি বৃদ্ধি এবং সঠিক সময়ে ফ্ল্যাটের হস্তান্তর সম্পন্নকরণ।' : 'Expedites developmental phases to ensure keys turn-over matches delivery schedules.'}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="quote-footer-stamp">
+         "ভিত্তিশীল স্বচ্ছতা একটি নির্মাণ কাজকে শুধু ঘর বানায় না, তাকে ভালোবাসার ঠিকানা বানায়।"
+      </div>
+
+      <div class="running-footer">
+        <span>ATT Smart Resident Manuel</span>
+        <div class="page-number">09</div>
+      </div>
+    </div>
+
+
+    <!-- ==============================================
+         PAGE 10: CHAPTER 8: EXHIBIT GALLERY
+         ============================================== -->
+    <div class="page-break">
+      <div class="book-frame-overlay"></div>
+      <span class="corner-ornament ornament-tl"></span>
+      <span class="corner-ornament ornament-tr"></span>
+      <span class="corner-ornament ornament-bl"></span>
+      <span class="corner-ornament ornament-br"></span>
+
+      <div>
+        <div class="running-header">
+          <span>${language === 'bn' ? 'স্থায়িত্ব নকশা ও ৩ডি নকশা প্রদর্শনী' : '3D ARCHITECTURAL EXHIBITS'}</span>
+          <span>Chapter IX</span>
+        </div>
+
+        <div class="chapter-heading-group">
+          <span class="chapter-num">Chapter IX</span>
+          <h2 class="chapter-title">${language === 'bn' ? '৩ডি স্থাপত্য গ্যালারি ও পরিকল্পিত চিত্রমালা' : 'Chapter IX: Visual Exhibitions'}</h2>
+        </div>
+
+        <p class="chapter-body-p">
+          ${language === 'bn' 
+            ? 'আ স্থা টুইন টাওয়ার্সের ভবিষ্যৎ রাজকীয় রূপকল্পের আধুনিক ৩ডি নকশা ও স্থাপত্যগত মানদণ্ডসমূহ এখানে ছবির আকারে তুলে ধরা হলো। এই স্থাপত্য রূপরেখাটি আধুনিক ট্রিপল গ্লাস রেসিস্টেড ফ্যাসাড, ভুমিকম্প সহনশীলতা ও সবুজ প্রাকৃতিক পরিবেশের প্রতি আমাদের প্রতিজ্ঞার অনন্য স্বাক্ষর।'
+            : 'S howcasing the majestic architectural model of the Astha Twin Towers. The following design drafts reveal the double-tower active layout, panoramic capsule elevators, and the eco-friendly structural designs intended to maximize resident luxury and property equity.'}
+        </p>
+
+        <!-- Dynamic Photo Portfolio loaded dynamically from uploaded images -->
+        <div class="gallery-container">
+          ${galleryHtml}
+        </div>
+      </div>
+
+      <div class="running-footer">
+        <span>ATT Smart Resident Manuel</span>
+        <div class="page-number">10</div>
+      </div>
+    </div>
+
+
+    <!-- ==============================================
+         PAGE 11: EPILOGUE & BACK COVER
+         ============================================== -->
+    <div class="page-break back-cover">
+      <div class="book-frame-overlay"></div>
+      <span class="corner-ornament ornament-tl"></span>
+      <span class="corner-ornament ornament-tr"></span>
+      <span class="corner-ornament ornament-bl"></span>
+      <span class="corner-ornament ornament-br"></span>
+
+      <div class="back-cover-seal">
+        <span>OFFICIAL SEAL</span>
+        <span style="font-size:7px; letter-spacing:1px; margin-top:3px;">APPROVED 2026</span>
+      </div>
+
+      <div>
+        <h2 style="font-family: 'Playfair Display', serif; font-size:24px; color: var(--primary); margin-bottom: 15px;">
+          ${language === 'bn' ? 'আস্থা টুইন টাওয়ার্স - রাজকীয় সত্যতা' : 'Astha Twin Towers - Royal Credence'}
+        </h2>
+        <p style="font-size:13px; color:#475569; max-width:480px; margin:0 auto; line-height:1.7;">
+          ${language === 'bn'
+            ? 'এই দলিল বিশ্বাস ও আধুনিক বিজ্ঞানসম্মত আবাসিক ডিরেক্টরির রূপরেখা। এই ম্যানুয়ালে উল্লেখিত প্রতিটি তথ্য আমাদের আস্থা কমপ্লেক্সের সামগ্রিক সমৃদ্ধি ও দীর্ঘস্থায়ী স্থায়িত্ব রক্ষা করতে সুনিশ্চিত ভূমিকা পালন করে।'
+            : 'Thank you for exploring the official resident guide. This document serves as a standard blueprint for automated community execution and represents the unwavering spirit of structural harmony.'}
         </p>
       </div>
 
-      <div style="border-top:1px solid #e2e8f0; margin-top:150px; font-size:11px; color:#64748b; text-align:center; padding-top:20px;">
-        Astha Twin Towers Association • Generated at ${timestamp} UTC
+      <div style="width:100%; border-top:1px solid rgba(146, 106, 39, 0.18); padding-top:20px; font-size:11px; color:#5b6e65; font-family:'Inter'; text-transform:uppercase; letter-spacing: 1px;">
+        <span>© 2026 Astha Twin Towers Association • Khetasar, Cumilla, Bangladesh</span>
       </div>
     </div>
 
+  </div> <!-- booklet-container end -->
 
-    <!-- PAGE 3: FEATURE 1: MEMBERS -->
-    <div class="page-break module-sheet">
-      <div>
-        <div class="section-header">
-          <h2>০১. সদস্য রেজিস্ট্রি ও স্মার্ট প্রোফাইল</h2>
-          <span class="page-num">Page 03</span>
-        </div>
-
-        <div class="module-title-bar">
-          <div class="module-pin">01</div>
-          <div>
-            <span class="module-meta">Resident Self-Service Dashboard</span>
-            <h3>Member Registry & Smart Profiles</h3>
-          </div>
-        </div>
-
-        <div class="block-desc">
-          <strong>বাংলা বিবরণ:</strong><br>
-          আস্থা টুইন টাওয়ার্সের (ব্লক এ এবং বি) প্রতিটি ফ্ল্যাটের মালিক, ভাড়াটিয়া এবং পরিবারের সদস্যদের সেন্ট্রাল ডিরেক্টরি। এর মাধ্যমে সহজে বাসিন্দাদের যোগাযোগের তথ্য ও প্রোফাইল ছবি স্বয়ংক্রিয়ভাবে আপডেট করা যায়। এডমিনদের দ্বারা অনুমোদিত এই ডেটাবেইসটি বাইরের যেকোনো অনাকাঙ্ক্ষিত প্রবেশের ঝুঁকিকে শূন্যে নামিয়ে আনে।
-          <br><br>
-          <strong>English Overview:</strong><br>
-          A fully centralized directory mapping every Flat Owner, Family Member, and Tenant across the Dual Towers (Blocks A & B). It enables self-service updates for contact information and modern profile configurations with strict admin verification to secure resident privacy.
-        </div>
-
-        <span class="subtitle-label">বাসিন্দাদের প্রত্যক্ষ উপকারিতাসমূহ (Resident Advantages)</span>
-        <ul className="benefit-list" style="list-style-type: none;">
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">ফ্ল্যাট ভিত্তিক ডিজিটাল ডেটা থাকায় কমিটির জবাবদিহিতা ও শতভাগ স্বচ্ছতা তৈরি হয়।</li>
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">জরুরি মুহূর্তে প্রতিবেশী ফ্ল্যাটের সাথে তাৎক্ষণিক যোগাযোগ স্থাপন সম্ভব।</li>
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">এডমিন ভেরিফিকেশন সিস্টেম দ্বারা সম্পূর্ণ ফাইল ও ব্যক্তিগত তথ্যের নিরাপত্তা শতভাগ বজায় থাকে।</li>
-        </ul>
-      </div>
-
-      <div class="value-card">
-        <span class="label">মূল ভিত্তি (Core Value Statement)</span>
-        <p>"সকল অধিবাসীদের মধ্যে ঐক্যবদ্ধ, নিরাপদ এবং আধুনিক ডিজিটাল মেলবন্ধন তৈরি করে।"</p>
-      </div>
-    </div>
-
-
-    <!-- PAGE 4: FEATURE 2: FINANCE -->
-    <div class="page-break module-sheet">
-      <div>
-        <div class="section-header">
-          <h2>০২. আর্থিক হিসাবনিকাশ ও ফি আদায়</h2>
-          <span class="page-num">Page 04</span>
-        </div>
-
-        <div class="module-title-bar">
-          <div class="module-pin">02</div>
-          <div>
-            <span class="module-meta">Anti-Fraud Ledger Engine</span>
-            <h3>Ledgers & Automated Billing</h3>
-          </div>
-        </div>
-
-        <div class="block-desc">
-          <strong>বাংলা বিবরণ:</strong><br>
-          সনাতন কাগজের হিসাব খাতা বাতিল করে এটি স্বয়ংক্রিয়ভাবে প্রতি মাসের মেইনটেন্যান্স ফি, ইউটিলিটি চার্জ এবং প্রজেক্টের জরুরি ফান্ড হিসাব করে। অধিবাসীরা নিজেদের বকেয়া দেখে মুহূর্তেই রশিদ সংগ্রহ করতে পারেন। এটি সোসাইটির ক্যাশবুকে সম্পূর্ণ স্বচ্ছতা বজায় রাখে।
-          <br><br>
-          <strong>English Overview:</strong><br>
-          Eliminates manual paper-based accounts. It automatically generates monthly maintenance dues, community utility fees, and special project funds. Tracks real-time payments and allows downloading of instant digital receipts.
-        </div>
-
-        <span class="subtitle-label">বাসিন্দাদের প্রত্যক্ষ উপকারিতাসমূহ (Resident Advantages)</span>
-        <ul className="benefit-list" style="list-style-type: none;">
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">বাসিন্দাগণ তাদের মোট বকেয়া, অগ্রিম এবং পূর্ববর্তী হিসাবের স্পষ্ট বিবরণ দেখতে পান।</li>
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">ডিজিটাল ক্যাশলেজার থাকার কারণে হিসাবের কোনো গড়মিল বা তছরুপ হবার সুযোগ থাকে না।</li>
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">ফি পরিশোধের সাথে সাথেই মোবাইল ও ইমেইলে কনফার্মেশন ও ডিজিটাল রসিদ ডাউনলোডের সুবিধা।</li>
-        </ul>
-      </div>
-
-      <div class="value-card">
-        <span class="label">মূল ভিত্তি (Core Value Statement)</span>
-        <p>"সোসাইটির ফান্ড ব্যবস্থাপনায় শতভাগ সততা ও স্বচ্ছতা নিশ্চিত করে।"</p>
-      </div>
-    </div>
-
-
-    <!-- PAGE 5: FEATURE 3: NOTICES -->
-    <div class="page-break module-sheet">
-      <div>
-        <div class="section-header">
-          <h2>০৩. ডিজিটাল নোটিশবোর্ড ও লাইভ অ্যালার্ট</h2>
-          <span class="page-num">Page 05</span>
-        </div>
-
-        <div class="module-title-bar">
-          <div class="module-pin">03</div>
-          <div>
-            <span class="module-meta">Instant Announcement Feed</span>
-            <h3>Smart Notice Board & Alerts</h3>
-          </div>
-        </div>
-
-        <div class="block-desc">
-          <strong>বাংলা বিবরণ:</strong><br>
-          একটি রিয়েল-টাইম নোটিশ পোর্টাল যার সাহায্যে কমিটির গুরুত্বপূর্ণ নোটিশ সবার কাছে দ্রুত পৌঁছায়। জরুরি ঘোষণাগুলো ভিন্ন রঙে বিশেষভাবে চিহ্নিত থাকে এবং আমাদের ওয়েবসাইটে সবসময় জ্বলজ্বল করে যেন প্রতিটি বাসিন্দা আবাসন কমপ্লেক্সের খবর ও মিটিং এর বিষয়ে সজাগ থাকেন।
-          <br><br>
-          <strong>English Overview:</strong><br>
-          A real-time bulletin center ensuring no important decision goes unseen. Key announcements are highlighted with color-coded tags and scrolling ticker bars on the login screen for instant attention across both towers.
-        </div>
-
-        <span class="subtitle-label">বাসিন্দাদের প্রত্যক্ষ উপকারিতাসমূহ (Resident Advantages)</span>
-        <ul className="benefit-list" style="list-style-type: none;">
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">সাধারণ নোটিশ ও জরুরি সতর্কবার্তার মধ্যে পার্থক্য সহজে বুঝে নেওয়া যায়।</li>
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">মৌখিক যোগাযোগের ভুল বোঝাবুঝি দূর করে এবং অতীতের সব নোটিশ আর্কাইভে সংরক্ষিত থাকে।</li>
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">নোটিশের সাথে প্রাসঙ্গিক ছবি বা ফাইল যুক্ত থাকায় সহজে নির্দেশাবলী বুঝা যায়।</li>
-        </ul>
-      </div>
-
-      <div class="value-card">
-        <span class="label">মূল ভিত্তি (Core Value Statement)</span>
-        <p>"টাওয়ারের যেকোনো জরুরি সিদ্ধান্ত ও খবরাখবর তাৎক্ষণিকভাবে সবার কাছে পৌঁছে দেয়।"</p>
-      </div>
-    </div>
-
-
-    <!-- PAGE 6: FEATURE 4: VISITORS -->
-    <div class="page-break module-sheet">
-      <div>
-        <div class="section-header">
-          <h2>০৪. ভিজিটর ও গেস্ট ম্যানেজমেন্ট</h2>
-          <span class="page-num">Page 06</span>
-        </div>
-
-        <div class="module-title-bar">
-          <div class="module-pin">04</div>
-          <div>
-            <span class="module-meta">Fortified Entrance Protocol</span>
-            <h3>Visitor & Gate Pass Register</h3>
-          </div>
-        </div>
-
-        <div class="block-desc">
-          <strong>বাংলা বিবরণ:</strong><br>
-          দারোয়ান বা গেটরক্ষকদের সনাতন খাতা পরিবর্তন করে ডিজিটালভাবে সকল অতিথি, ডেলিভারি কর্মী এবং গৃহকর্মীদের নাম, ফোন নম্বর, ফ্ল্যাট নম্বর, গাড়ির নম্বর ও প্রবেশের সময় নথিভুক্ত করার আধুনিক ব্যবস্থা। এটি সিকিউরিটি প্রটোকলকে আরো মজবুত করে।
-          <br><br>
-          <strong>English Overview:</strong><br>
-          Digitizes building front-desk entrance diaries. Security staff logs visitor names, phone numbers, visiting flats, car numbers, entry reasons, and precise check-in/out timestamps to eliminate loopholes.
-        </div>
-
-        <span class="subtitle-label">বাসিন্দাদের প্রত্যক্ষ উপকারিতাসমূহ (Resident Advantages)</span>
-        <ul className="benefit-list" style="list-style-type: none;">
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">কে কখন প্রবেশ করলো তা সহজে সার্চ ও মনিটর করার সুরক্ষিত ডেডিকেটেড লাইভ ড্যাশবোর্ড।</li>
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">ডেলিভারি ম্যান, টেকনিশিয়ান বা ক্যাজুয়াল শ্রমিকদের ব্লক-ভিত্তিক ট্র্যাকিং ব্যবস্থা।</li>
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">সন্দেহভাজন প্রবেশকারীদের চিহ্নিত করা সহজ হয় এবং ভবনের সামগ্রিক নিরাপত্তা বহুগুণ বৃদ্ধি পায়।</li>
-        </ul>
-      </div>
-
-      <div class="value-card">
-        <span class="label">মূল ভিত্তি (Core Value Statement)</span>
-        <p>"টাওয়ারকে সিসিটিভি ক্যামেরার পাশাপাশি ডিজিটাল সিকিউরিটি চাদরে ও দুর্গে আবৃত করে।"</p>
-      </div>
-    </div>
-
-
-    <!-- PAGE 7: FEATURE 5: COMPLAINTS -->
-    <div class="page-break module-sheet">
-      <div>
-        <div class="section-header">
-          <h2>০৫. মেরামত ও তাৎক্ষণিক অভিযোগ বক্স</h2>
-          <span class="page-num">Page 07</span>
-        </div>
-
-        <div class="module-title-bar">
-          <div class="module-pin">05</div>
-          <div>
-            <span class="module-meta">Resident Care Helpdesk</span>
-            <h3>Incident Box & Service Portal</h3>
-          </div>
-        </div>
-
-        <div class="block-desc">
-          <strong>বাংলা বিবরণ:</strong><br>
-          বাসিন্দাদের জন্য কমন স্পেসের সমস্যা (যেমন- লিফটের ক্রটি, পানির লাইনের লিকেজ, জেনারেটরের ত্রুটি বা পরিচ্ছন্নতার অভাব) সরাসরি ছবি ও বিবরণ সহ কমিটির কাছে ডিজিটাল অভিযোগ বক্সে সাবমিট করার সুবিধা। এতে দ্রুত মেরামত প্রক্রিয়া শুরু হয়।
-          <br><br>
-          <strong>English Overview:</strong><br>
-          Allows residents to report physical maintenance issues (e.g., elevator glitches, pipe leaks, cleaning needs) directly with photos and priority status tags to keep committee members alert.
-        </div>
-
-        <span class="subtitle-label">বাসিন্দাদের প্রত্যক্ষ উপকারিতাসমূহ (Resident Advantages)</span>
-        <ul className="benefit-list" style="list-style-type: none;">
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">কমিটি অভিযোগটি কদ্দূর সমাধান করলো তা লাইভ ট্র্যাক করার আধুনিক ড্যাশবোর্ড।</li>
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">সব ধরণের অভিযোগ লিখিত রেকর্ডে থাকায় তা এড়িয়ে যাওয়ার সুযোগ থাকে না।</li>
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">দ্রুত ও গুণগত মানসম্পন্ন মেরামতের নিশ্চয়তা নিশ্চিত করা ও সোসাইটির মান উন্নত করা।</li>
-        </ul>
-      </div>
-
-      <div class="value-card">
-        <span class="label">মূল ভিত্তি (Core Value Statement)</span>
-        <p>"বাসিন্দাদের জীবনযাত্রার মান উন্নত করতে দ্রুত সেবা ও বিজ্ঞানসম্মত সমাধান নিশ্চিত করে।"</p>
-      </div>
-    </div>
-
-
-    <!-- PAGE 8: FEATURE 6: STAFF -->
-    <div class="page-break module-sheet">
-      <div>
-        <div class="section-header">
-          <h2>০৬. নিরাপত্তা কর্মী ও শিফট রেজিস্টার</h2>
-          <span class="page-num">Page 08</span>
-        </div>
-
-        <div class="module-title-bar">
-          <div class="module-pin">06</div>
-          <div>
-            <span class="module-meta">Workforce Attendance Hub</span>
-            <h3>Security & Shift Register</h3>
-          </div>
-        </div>
-
-        <div class="block-desc">
-          <strong>বাংলা বিবরণ:</strong><br>
-          ভবনের সার্বক্ষণিক নিরাপত্তা প্রহরী, সুইপার এবং সুইমিংপুল-ফিটনেস ইনস্ট্রাক্টরদের বায়োডাটা, বেতন এবং প্রতিদিনের ডাবল-শিফট হাজিরা খাতা (চেক-ইন ও আউট সময় সহ) ট্র্যাক করার মডিউল। যা অরাজকতা বা দায়িত্বহীনতা রোধ করে।
-          <br><br>
-          <strong>English Overview:</strong><br>
-          Maintains comprehensive records for security personnel, cleaning squads, and technical staff. Logs salary details and manages daily shifts with check-in/out timestamps.
-        </div>
-
-        <span class="subtitle-label">বাসিন্দাদের प्रत्यक्ष উপকারিতাসমূহ (Resident Advantages)</span>
-        <ul className="benefit-list" style="list-style-type: none;">
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">কর্মীদের ডিউটি শিফটে অনুপস্থিতির কোনো সুযোগ থাকে না, ফলে গার্ড পাহারা নিশ্ছিদ্র থাকে।</li>
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">হাজিরা অনুযায়ী মাসের শেষ দিনে সঠিক বেতন প্রদান প্রক্রিয়া সুচারুভাবে মেইনটেইন করা।</li>
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">যেকোনো জরুরি ম্যালফাংশন পরিস্থিতিতে তাৎক্ষণিকভাবে অন-ডিউটি কর্মীদের ডাকার সুবিধা।</li>
-        </ul>
-      </div>
-
-      <div class="value-card">
-        <span class="label">মূল ভিত্তি (Core Value Statement)</span>
-        <p>"সোসাইটির সেবকদের পরিচালনা শৃঙ্খলা ও কর্তব্যপরায়ণতার শীর্ষে নিয়ে যায়।"</p>
-      </div>
-    </div>
-
-
-    <!-- PAGE 9: FEATURE 7: CONSTRUCTION -->
-    <div class="page-break module-sheet" style="page-break-after: avoid;">
-      <div>
-        <div class="section-header">
-          <h2>০৭. প্রজেক্ট ডেভেলপমেন্ট ও নির্মাণ খরচ ট্র্যাকার</h2>
-          <span class="page-num">Page 09</span>
-        </div>
-
-        <div class="module-title-bar">
-          <div class="module-pin">07</div>
-          <div>
-            <span class="module-meta">Project Cost & Timeline Audit</span>
-            <h3>Digital Growth & Expense Audit</h3>
-          </div>
-        </div>
-
-        <div class="block-desc">
-          <strong>বাংলা বিবরণ:</strong><br>
-          ভবন নির্মাণাধীন বা ডেভলপমেন্ট ধাপে থাকলে এই ডিজিটাল ক্যাটাগরির মাধ্যমে প্রজেক্টের লাইভ অগ্রগতি, ব্যয়কৃত খরচের লেজার এবং সদস্যদের প্রদত্ত জমা টাকার পরিমাণ স্বচ্ছভাবে ট্র্যাক করা সম্ভব। এটি প্রজেক্টের মূল চালিকাশক্তিকে বেগবান করে।
-          <br><br>
-          <strong>English Overview:</strong><br>
-          Tracks the construction and developmental progress of the Twin Towers in real-time. Logs building phases, materials expenditure, and logs of deposits contributed by owner members.
-        </div>
-
-        <span class="subtitle-label">বাসিন্দাদের প্রত্যক্ষ উপকারিতাসমূহ (Resident Advantages)</span>
-        <ul className="benefit-list" style="list-style-type: none;">
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">প্রজেক্টের কাজের প্রকৃত অগ্রগতি ছবির মাধ্যমে ঘরে বসেই দেখার পরম সুযোগ।</li>
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">আইটেম অনুযায়ী রড, সিমেন্ট ও নির্মাণ ব্যয়ের স্পষ্ট ও আইনি ডিজিটাল রূপরেখা।</li>
-          <li style="position: relative; padding-left: 30px; margin-bottom: 12px; font-size:13px; color:#1e293b;">ভুল ধারণার অবসান ঘটিয়ে প্রজেক্টের দ্রুত বাস্তবায়ন ও সঠিক সময়ে ফ্ল্যাটের চাবি হস্তান্তর।</li>
-        </ul>
-      </div>
-
-      <div class="value-card">
-        <span class="label">মূল ভিত্তি (Core Value Statement)</span>
-        <p>"প্রজেক্টের নির্মাণ শুরু থেকে ফ্ল্যাট হস্তান্তর পর্যন্ত আর্থিক ও নির্মাণ কাজের পরম স্বচ্ছতা এনে দেয়।"</p>
-      </div>
-    </div>
-
-  </div>
-
-  <div style="font-family: monospace; font-size: 11px; color:#64748b; margin-top:20px; text-align:center; padding-bottom: 40px;">
-    © 2026 Astha Twin Towers Association • Khetasar, Cumilla • Verified Secure Document
+  <div style="font-family: monospace; font-size: 11px; color:#64748b; margin-top:25px; text-align:center; padding-bottom: 50px;">
+    © 2026 Astha Twin Towers Association • Smart Bilingual Hardcopy Handbook • Certified Genuine Product
   </div>
 
   <!-- Auto Initiates Print Dialogue On Load -->
@@ -1057,6 +1515,20 @@ export default function Login({ onRegisterClick }: LoginProps) {
   // Action Triggers
   const open3dModal = () => {
     setValBuilding3dImg(config.building3dImg || '');
+    let initialImages: string[] = [];
+    try {
+      if (config.building3dImagesJson) {
+        initialImages = JSON.parse(config.building3dImagesJson);
+      } else if (config.building3dImg) {
+        initialImages = [config.building3dImg];
+      }
+    } catch (e) {
+      console.error(e);
+      if (config.building3dImg) {
+        initialImages = [config.building3dImg];
+      }
+    }
+    setValBuilding3dImages(initialImages);
     setValBuilding3dTitleEn(config.building3dTitleEn || "Astha Twin Towers - Architectural Highlights");
     setValBuilding3dTitleBn(config.building3dTitleBn || "আস্থা টুইন টাওয়ার্স - স্থাপত্য মানদণ্ড");
     setValBuilding3dDescEn(config.building3dDescEn || "Astha Twin Towers is Cumilla’s pioneer dual-tower premium luxury high-rise condominium complex located in Khetasar...");
@@ -1066,8 +1538,10 @@ export default function Login({ onRegisterClick }: LoginProps) {
 
   const save3dCustomizations = (e: React.FormEvent) => {
     e.preventDefault();
+    const firstImg = valBuilding3dImages[0] || valBuilding3dImg || '';
     updateConfig({
-      building3dImg: valBuilding3dImg,
+      building3dImg: firstImg,
+      building3dImagesJson: JSON.stringify(valBuilding3dImages),
       building3dTitleEn: valBuilding3dTitleEn,
       building3dTitleBn: valBuilding3dTitleBn,
       building3dDescEn: valBuilding3dDescEn,
@@ -1252,25 +1726,6 @@ export default function Login({ onRegisterClick }: LoginProps) {
       }
     } catch (err) {
       setError(String(err));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    setError('');
-    setLoading(true);
-    try {
-      const authResult = await googleSignIn();
-      if (authResult?.user?.email) {
-        const success = await loginWithGoogle(authResult.user.email);
-        if (success) {
-          setError('');
-        }
-      }
-    } catch (err: any) {
-      console.error(err);
-      setError(err?.message || 'Google authentication failed');
     } finally {
       setLoading(false);
     }
@@ -1614,18 +2069,66 @@ export default function Login({ onRegisterClick }: LoginProps) {
               {/* TAB 1: 3D VIEW ARCHITECTURE */}
               {activeTab === '3d' && (
                 <div className="space-y-4 animate-fade-in text-xs">
-                  <div className="relative rounded-xl border border-emerald-900/45 bg-neutral-950 overflow-hidden shadow-2xl">
-                    <img 
-                      src={config.building3dImg || building3dImg} 
-                      alt="Astha Twin Towers 3D Render View" 
-                      className="w-full aspect-video object-cover transition-transform duration-700 hover:scale-[1.03]"
-                      referrerPolicy="no-referrer"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/10 pointer-events-none" />
-                    <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between text-xs bg-black/75 backdrop-blur-md p-2 rounded border border-emerald-900/30">
-                      <span className="font-mono text-emerald-400 font-bold">● {language === 'bn' ? 'আধুনিক ৩ডি নকশার পরিকল্পিত প্রতিচ্ছবি' : 'Architectural 3D Virtual Concept Mockup'}</span>
-                      <span className="text-[10px] text-[#D4AF37] uppercase font-mono font-bold tracking-widest">{language === 'bn' ? 'প্রস্তাবিত' : 'PROPOSED STATE'}</span>
+                  <div className="relative rounded-xl border border-emerald-900/45 bg-neutral-950 overflow-hidden shadow-2xl aspect-video">
+                    {/* Slides container */}
+                    <div className="absolute inset-0 w-full h-full">
+                      {parsed3dImages.map((imgUrl, i) => {
+                        const isActive = i === currentSlide3d;
+                        return (
+                          <div
+                            key={i}
+                            className={`absolute inset-0 w-full h-full transition-all duration-1000 ease-in-out ${
+                              isActive 
+                                ? 'opacity-100 scale-100 translate-x-0 pointer-events-auto' 
+                                : 'opacity-0 scale-95 translate-x-4 pointer-events-none'
+                            }`}
+                          >
+                            <img
+                              src={imgUrl}
+                              alt={`3D Render Slide ${i + 1}`}
+                              className={`w-full h-full object-cover select-none ${
+                                isActive ? 'animate-ken-burns-zoom' : ''
+                              }`}
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
+
+                    {/* Gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
+
+                    {/* Lower Status Bar Overlay */}
+                    <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between text-xs bg-black/75 backdrop-blur-md p-2 rounded border border-emerald-900/30 z-10">
+                      <span className="font-mono text-emerald-400 font-bold">
+                        ● {language === 'bn' 
+                          ? `আধুনিক ৩ডি নকশার পরিকল্পিত প্রতিচ্ছবি (${currentSlide3d + 1}/${parsed3dImages.length})` 
+                          : `Architectural 3D Virtual Concept Mockup (${currentSlide3d + 1}/${parsed3dImages.length})`}
+                      </span>
+                      <span className="text-[10px] text-[#D4AF37] uppercase font-mono font-bold tracking-widest px-2 py-0.5 rounded bg-amber-950/40 border border-[#D4AF37]/30">
+                        {language === 'bn' ? 'প্রস্তাবিত' : 'PROPOSED STATE'}
+                      </span>
+                    </div>
+
+                    {/* Carousel Navigation Indicators (Only if more than 1 image) */}
+                    {parsed3dImages.length > 1 && (
+                      <div className="absolute top-4 right-4 flex gap-1.5 z-10">
+                        {parsed3dImages.map((_, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setCurrentSlide3d(i)}
+                            className={`w-5 h-1.5 rounded-full transition-all cursor-pointer ${
+                              i === currentSlide3d 
+                                ? 'bg-[#D4AF37] w-8' 
+                                : 'bg-slate-500/60 hover:bg-slate-300'
+                            }`}
+                            title={`Slide ${i + 1}`}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                   
                   <div className="p-4 bg-emerald-950/15 border border-emerald-950 rounded-xl space-y-2 relative">
@@ -2053,25 +2556,25 @@ export default function Login({ onRegisterClick }: LoginProps) {
                     )}
 
                     {/* Header Banner inside Tab */}
-                    <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/70 to-neutral-900 border border-emerald-900/40 relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="space-y-1">
-                        <span className="text-[10px] uppercase font-mono font-bold tracking-widest text-[#D4AF37] flex items-center gap-1">
-                          <CheckCircle className="h-3 w-3 text-emerald-400" />
+                    <div className="p-5 rounded-xl bg-white border-2 border-emerald-950 shadow-[6px_6px_0px_0px_rgba(5,46,22,1)] relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] uppercase font-mono font-black tracking-widest text-emerald-800 flex items-center gap-1.5">
+                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600 font-black" />
                           {language === 'bn' ? 'আস্থা টুইন টাওয়ার সোসাইটি পরিচালনা পরিষদ' : 'Astha Twin Towers Management Committee'}
                         </span>
-                        <h3 className="text-sm font-black text-white font-sans">
+                        <h3 className="text-sm font-extrabold text-emerald-950 font-sans tracking-tight">
                           {language === 'bn' ? 'ফিচার নির্দেশিকা ও প্রফেশনাল ডিজিটাল বুশিয়ার' : 'Smart App Feature Index & Resident Guide'}
                         </h3>
-                        <p className="text-[11px] text-slate-300 leading-normal max-w-xl font-sans">
+                        <p className="text-[11.5px] text-emerald-900 font-medium leading-relaxed max-w-xl font-sans">
                           {language === 'bn' 
                             ? 'আমাদের আবাসন কমপ্লেক্সের সামগ্রিক নিরাপত্তা, হিসাবের স্বচ্ছতা, পারস্পরিক ভ্রাতৃত্ব ও টেকসই অটোমেশন নিশ্চিত করতে তৈরি এই পোর্টালের প্রধান মডিউল ও অধিবাসীদের জন্য প্রত্যক্ষ উপকারিতাসমূহ নিচে উপস্থাপন করা হলো।'
                             : 'Explore how our integrated management portal establishes airtight building security, complete fiscal transparency, and flawless maintenance dispatching.'}
                         </p>
                       </div>
                       <div className="shrink-0 flex items-center">
-                        <div className="px-3 py-1.5 rounded-lg bg-neutral-950 border border-emerald-850 text-center font-mono">
-                          <span className="block text-[8px] text-slate-500 font-bold uppercase">{language === 'bn' ? 'মোট অনুচ্ছেদ' : 'INDEX SECTIONS'}</span>
-                          <span className="text-xs font-black text-[#D4AF37]">{brochureFeatures.length} Modules</span>
+                        <div className="px-3.5 py-2 rounded-lg bg-emerald-50 border-2 border-emerald-950 text-center font-mono shadow-[2px_2px_0px_0px_rgba(5,46,22,1)]">
+                          <span className="block text-[8px] text-emerald-800 font-black uppercase tracking-wider">{language === 'bn' ? 'মোট অনুচ্ছেদ' : 'INDEX SECTIONS'}</span>
+                          <span className="text-xs font-black text-amber-800">{brochureFeatures.length} Modules</span>
                         </div>
                       </div>
                     </div>
@@ -2362,44 +2865,6 @@ export default function Login({ onRegisterClick }: LoginProps) {
                     )}
                   </button>
                 </form>
-
-                {/* Google Authentication Section */}
-                <div className="relative flex py-2 items-center mt-4">
-                  <div className="flex-grow border-t border-emerald-950/60"></div>
-                  <span className="flex-shrink mx-4 text-[9px] text-slate-500 font-mono tracking-widest uppercase">
-                    {language === 'bn' ? 'অথবা জিমেইল লগইন' : 'OR SECURE GOOGLE LOGIN'}
-                  </span>
-                  <div className="flex-grow border-t border-emerald-950/60"></div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleGoogleSignIn}
-                  disabled={loading}
-                  className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-slate-700 bg-white hover:bg-slate-50 px-4 py-3 text-emerald-950 transition-all cursor-pointer shadow-md disabled:opacity-55"
-                >
-                  <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
-                    <path
-                      fill="#4285F4"
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    />
-                    <path
-                      fill="#34A853"
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    />
-                    <path
-                      fill="#FBBC05"
-                      d="M5.84 14.1c-.22-.66-.35-1.39-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.84z"
-                    />
-                    <path
-                      fill="#EA4335"
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                    />
-                  </svg>
-                  <span className="font-sans font-black tracking-wider uppercase text-[10px] text-slate-800">
-                    {language === 'bn' ? 'গুগল অ্যাকাউন্ট দিয়ে প্রবেশ' : 'Sign in with Google (Gmail)'}
-                  </span>
-                </button>
 
                 {/* Route Transition Footer to Register */}
                 <div className="text-center pt-4 border-t border-emerald-950/45 mt-4">
@@ -2736,47 +3201,122 @@ export default function Login({ onRegisterClick }: LoginProps) {
             </div>
 
             <form onSubmit={save3dCustomizations} className="space-y-4 text-xs font-sans">
-              <div className="space-y-2 bg-neutral-900/60 p-3.5 rounded-lg border border-emerald-900/35">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] uppercase font-mono font-bold text-slate-300 block">3D Image (ছবি)</label>
-                  {valBuilding3dImg && (
+              <div className="space-y-4 bg-neutral-900/60 p-4 rounded-lg border border-emerald-900/35">
+                <label className="text-[10px] uppercase font-mono font-bold text-[#D4AF37] block">
+                  {language === 'bn' ? 'ছবি গ্যালারি (একাধিক ছবি আপলোড)' : 'Image Gallery (Upload Multiple Images)'}
+                </label>
+
+                {/* CURRENT LIST GRID */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-1 bg-neutral-950/70 rounded-md border border-emerald-950/40">
+                  {valBuilding3dImages.length === 0 ? (
+                    <div className="col-span-full py-8 text-center text-[10px] text-slate-400 font-mono uppercase tracking-wider">
+                      {language === 'bn' ? 'কোনো ছবি আপলোড করা হয়নি' : 'No images uploaded yet'}
+                    </div>
+                  ) : (
+                    valBuilding3dImages.map((img, idx) => (
+                      <div key={idx} className="relative group aspect-video rounded overflow-hidden border border-slate-800 bg-neutral-900">
+                        <img 
+                          src={img} 
+                          alt={`Render preview ${idx + 1}`} 
+                          className="w-full h-full object-cover" 
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="absolute top-1 left-1 bg-black/75 text-emerald-400 font-mono text-[9px] px-1 rounded font-bold">
+                          #{idx + 1}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setValBuilding3dImages(prev => prev.filter((_, i) => i !== idx));
+                          }}
+                          className="absolute top-1 right-1 bg-red-650 hover:bg-rose-700 text-white rounded p-1 shadow transition-all cursor-pointer opacity-90 hover:scale-105"
+                          title="Remove image"
+                        >
+                          <X className="h-3 w-3 text-white" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* ADD ACTIONS */}
+                <div className="space-y-2">
+                  {/* Local file upload */}
+                  <div className="flex items-center gap-3">
+                    <label htmlFor="building-3d-upload-input" className="flex items-center gap-1.5 px-3 py-2 rounded bg-emerald-750 hover:bg-emerald-700 text-white font-bold text-[10px] cursor-pointer shadow hover:shadow-emerald-900/30 transition-all select-none">
+                      <Upload className="h-3.5 w-3.5 text-amber-400" />
+                      <span>{language === 'bn' ? 'লোকাল ড্রাইভ থেকে ছবি যুক্ত করুন' : 'Attach from Local Computer'}</span>
+                    </label>
+                    <input
+                      id="building-3d-upload-input"
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const files = e.target.files;
+                        if (!files) return;
+                        Array.from(files).forEach(file => {
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            const img = new Image();
+                            img.onload = () => {
+                              const canvas = document.createElement('canvas');
+                              const MAX_WIDTH = 1000;
+                              const MAX_HEIGHT = 1000;
+                              let width = img.width;
+                              let height = img.height;
+                              if (width > height) {
+                                if (width > MAX_WIDTH) {
+                                  height *= MAX_WIDTH / width;
+                                  width = MAX_WIDTH;
+                                }
+                              } else {
+                                if (height > MAX_HEIGHT) {
+                                  width *= MAX_HEIGHT / height;
+                                  height = MAX_HEIGHT;
+                                }
+                              }
+                              canvas.width = width;
+                              canvas.height = height;
+                              const ctx = canvas.getContext('2d');
+                              ctx?.drawImage(img, 0, 0, width, height);
+                              const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+                              setValBuilding3dImages(prev => [...prev, compressedDataUrl]);
+                            };
+                            img.src = event.target?.result as string;
+                          };
+                          reader.readAsDataURL(file as any);
+                        });
+                      }}
+                    />
+                    <span className="text-[9px] text-slate-500 font-mono">
+                      {language === 'bn' ? '✓ একাধিক ফাইল নির্বাচন করতে পারেন' : '✓ Bulk select supported'}
+                    </span>
+                  </div>
+
+                  {/* Add via Web URL */}
+                  <div className="flex gap-1.5 pt-1">
+                    <input
+                      type="text"
+                      placeholder={language === 'bn' ? 'অনলাইন ছবির লিঙ্ক পেস্ট করুন...' : 'Paste image web URL here...'}
+                      value={valBuilding3dNewUrl}
+                      onChange={(e) => setValBuilding3dNewUrl(e.target.value)}
+                      className="flex-grow rounded border border-emerald-950 bg-neutral-950 py-1.5 px-2.5 text-white text-xs focus:border-[#D4AF37] focus:outline-none placeholder-slate-700"
+                    />
                     <button
                       type="button"
                       onClick={() => {
-                        if (window.confirm(language === 'bn' ? 'আপনি কি নিশ্চিত ছবি ডিলিট বা রিসেট করতে চান?' : 'Are you sure you want to delete/reset this custom image?')) {
-                          setValBuilding3dImg('');
+                        if (valBuilding3dNewUrl.trim()) {
+                          setValBuilding3dImages(prev => [...prev, valBuilding3dNewUrl.trim()]);
+                          setValBuilding3dNewUrl('');
                         }
                       }}
-                      className="text-[9px] text-red-500 hover:text-red-400 font-bold font-mono tracking-wider transition-colors cursor-pointer"
+                      className="px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold font-mono uppercase tracking-wider transition-all cursor-pointer"
                     >
-                      [ {language === 'bn' ? 'ছবি ডিলিট / রিসেট' : 'Delete / Reset'} ]
+                      {language === 'bn' ? 'যুক্ত করুন' : 'Add'}
                     </button>
-                  )}
-                </div>
-                <input
-                  type="text"
-                  placeholder="Paste web URL or upload from local drive..."
-                  value={valBuilding3dImg}
-                  onChange={(e) => setValBuilding3dImg(e.target.value)}
-                  className="block w-full rounded-md border border-emerald-950 bg-neutral-950 py-2 px-3 text-white focus:border-[#D4AF37] focus:outline-none placeholder-slate-700"
-                />
-                
-                 {/* Local file uploader wrapper */}
-                <div className="flex items-center gap-3 pt-1">
-                  <label htmlFor="building-3d-upload-input" className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-900/80 hover:bg-emerald-800 text-white font-semibold text-[10px] cursor-pointer shadow hover:shadow-emerald-900/30 transition-all select-none">
-                    <Upload className="h-3.5 w-3.5 text-amber-400 font-bold" />
-                    <span>{language === 'bn' ? 'লোকাল ড্রাইভ থেকে ছবি আপলোড' : 'Upload from Local Drive'}</span>
-                  </label>
-                  <input
-                    id="building-3d-upload-input"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => handleImageUpload(e, setValBuilding3dImg)}
-                  />
-                  {valBuilding3dImg?.startsWith('data:image') && (
-                    <span className="text-[10px] text-emerald-400 font-mono">✓ Base64 Loaded</span>
-                  )}
+                  </div>
                 </div>
               </div>
 
