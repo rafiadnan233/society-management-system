@@ -365,7 +365,7 @@ export default function Dashboard() {
                 className="bg-slate-800 border border-slate-600 rounded-xl p-5 flex flex-col justify-between hover:border-[#D4AF37] hover:shadow-[0_0_15px_rgba(212,175,55,0.15)] transition-all relative overflow-hidden"
               >
                 {/* Accent Top Border per box */}
-                <div className={`absolute top-0 left-0 w-full h-1 ${phase.status === 'Completed' ? 'bg-emerald-500' : 'bg-[#D4AF37]'}`}></div>
+                <div className={`absolute top-0 left-0 w-full h-1 ${(pDeposits >= pTarget || phase.status === 'Completed') ? 'bg-emerald-500' : 'bg-[#D4AF37]'}`}></div>
                 
                 <div>
                   <div className="flex items-start justify-between mb-4 mt-1">
@@ -373,13 +373,13 @@ export default function Dashboard() {
                       {String(idx + 1).padStart(2, '0')}
                     </span>
                     <span className={`inline-block text-[14px] font-bold px-3 py-0.5 rounded-full shadow ${
-                      phase.status === 'Completed' 
+                      (pDeposits >= pTarget || phase.status === 'Completed') 
                         ? 'bg-emerald-900/80 text-emerald-400 border border-emerald-500' 
                         : phase.status === 'In-Progress' 
                           ? 'bg-amber-900/80 text-amber-400 border border-amber-500' 
                           : 'bg-slate-700 text-slate-400 border border-slate-500'
                     }`}>
-                      {phase.status === 'Completed' 
+                      {(pDeposits >= pTarget || phase.status === 'Completed') 
                         ? (language === 'bn' ? 'সম্পন্ন' : 'Completed') 
                         : phase.status === 'In-Progress' 
                           ? (language === 'bn' ? 'চলমান' : 'In-Progress') 
@@ -408,7 +408,7 @@ export default function Dashboard() {
                   </div>
                   <div className="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-700">
                     <div 
-                      className={`h-full rounded-full transition-all duration-700 shadow-[inset_0_1px_3px_rgba(0,0,0,0.3)] ${phase.status === 'Completed' ? 'bg-emerald-500' : 'bg-[#D4AF37]'}`} 
+                      className={`h-full rounded-full transition-all duration-700 shadow-[inset_0_1px_3px_rgba(0,0,0,0.3)] ${(pDeposits >= pTarget || phase.status === 'Completed') ? 'bg-emerald-500' : 'bg-[#D4AF37]'}`} 
                       style={{ width: `${pPercent}%` }}
                     />
                   </div>

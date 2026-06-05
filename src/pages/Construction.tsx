@@ -439,7 +439,7 @@ export default function Construction() {
       y += 5;
 
       // Draw table headers
-      const colX = [15, 65, 90, 115, 140, 165];
+      const colX = [15, 52, 74, 98, 122, 144, 168];
       
       doc.setFillColor(15, 23, 42);
       doc.rect(15, y, 180, 7, 'F');
@@ -452,7 +452,8 @@ export default function Construction() {
       doc.text("Total Budget", colX[2] + 2, y + 5);
       doc.text("Deposited", colX[3] + 2, y + 5);
       doc.text("Spent", colX[4] + 2, y + 5);
-      doc.text("Status", colX[5] + 2, y + 5);
+      doc.text("Current Balance", colX[5] + 2, y + 5);
+      doc.text("Status", colX[6] + 2, y + 5);
       
       y += 7;
 
@@ -482,16 +483,24 @@ export default function Construction() {
         const phaseSpent = phase.expenses.reduce((sum, e) => sum + e.amount, 0);
         doc.text(phaseSpent.toLocaleString(), colX[4] + 2, y + 4.5);
 
+        const currentBalance = phaseDeposits - phaseSpent;
+        doc.text(currentBalance.toLocaleString(), colX[5] + 2, y + 4.5);
+
         // Status
         doc.setFont('helvetica', 'bold');
-        if (phase.status === 'Completed') {
+        let displayStatus = phase.status;
+        if (phaseDeposits >= phaseBudget) {
+          displayStatus = 'Completed';
+        }
+
+        if (displayStatus === 'Completed') {
           doc.setTextColor(16, 185, 129);
-        } else if (phase.status === 'In-Progress') {
+        } else if (displayStatus === 'In-Progress') {
           doc.setTextColor(59, 130, 246);
         } else {
           doc.setTextColor(100, 116, 139);
         }
-        doc.text(phase.status, colX[5] + 2, y + 4.5);
+        doc.text(displayStatus, colX[6] + 2, y + 4.5);
 
         y += 7;
       });
@@ -554,7 +563,20 @@ export default function Construction() {
           y += 6;
         });
 
-        y += 4; // Extra margin after each phase
+        // Add Total Expense row under "Amount BDT"
+        checkNewPage(8);
+        doc.setDrawColor(15, 23, 42);
+        doc.line(15, y + 1, 195, y + 1);
+        
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(15, 23, 42);
+        doc.text("Total Amount:", expX[3] + 2, y + 5);
+        
+        const totalPhaseExpenses = phase.expenses.reduce((sum, e) => sum + e.amount, 0);
+        doc.text(totalPhaseExpenses.toLocaleString(), expX[4] + 2, y + 5);
+
+        y += 10; // Extra margin after each phase
       });
 
       // 4. UNPAID / DUE STATEMENT SUMMARY BY MEMBERS
@@ -833,13 +855,13 @@ export default function Construction() {
                     </div>
 
                     <span className={`px-2 py-0.5 rounded text-[9px] font-bold leading-none font-sans uppercase tracking-wider ${
-                      phase.status === 'Completed' 
+                      (pDeposited >= pTarget || phase.status === 'Completed') 
                         ? 'bg-emerald-100 text-emerald-800 border border-emerald-200/60' 
                         : phase.status === 'In-Progress' 
                           ? 'bg-amber-100 text-amber-800 border border-amber-200' 
                           : 'bg-slate-100 text-slate-600 border border-slate-200'
                     }`}>
-                      {phase.status === 'Completed' 
+                      {(pDeposited >= pTarget || phase.status === 'Completed') 
                         ? (language === 'bn' ? 'সম্পন্ন' : 'Completed') 
                         : phase.status === 'In-Progress' 
                           ? (language === 'bn' ? 'চলমান' : 'In-Progress') 
@@ -856,7 +878,7 @@ export default function Construction() {
                     <div className="w-full bg-slate-200/70 rounded-full h-1.5 overflow-hidden">
                       <div 
                         className={`h-full rounded-full transition-all duration-350 ${
-                          phase.status === 'Completed' ? 'bg-emerald-600' : 'bg-indigo-600'
+                          (pDeposited >= pTarget || phase.status === 'Completed') ? 'bg-emerald-600' : 'bg-indigo-600'
                         }`} 
                         style={{ width: `${Math.min(100, pPercent)}%` }} 
                       />
@@ -878,26 +900,42 @@ export default function Construction() {
           
           {/* Phase Header Controls */}
           <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <div>
-                <span className="text-[10px] font-bold text-emerald-700 tracking-wider font-mono bg-emerald-50 rounded px-2.5 py-1 uppercase border border-emerald-200/50">
-                  {language === 'bn' ? 'সক্রিয় খতিয়ান খণ্ড' : 'Active Registry Section'}
+                <span className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded border border-emerald-100 uppercase tracking-wider font-mono">
+                  {language === 'bn' ? 'ধাপের বিস্তারিত বিবরণ' : 'Phase Details & Actions'}
                 </span>
-                <h3 className="text-base font-extrabold text-slate-900 mt-2">
+                <h3 className="text-lg font-extrabold text-slate-900 mt-1">
                   {language === 'bn' ? activePhase.nameBn : activePhase.nameEn}
                 </h3>
               </div>
 
-              {/* Status Update Select */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-600 font-medium">
-                  {language === 'bn' ? 'কাজের অবস্থা:' : 'Work Status:'}
+                <span className="text-xs text-slate-500 font-semibold font-mono">
+                  {language === 'bn' ? 'স্ট্যাটাস:' : 'Status:'}
                 </span>
+                
                 {isAdmin ? (
                   <select
-                    value={activePhase.status}
+                    value={(() => {
+                      const activeTarget = activePhase.subscriptionPerMember * memberCount;
+                      const activeDeposited = activePhase.deposits.reduce((sum, d) => sum + d.amountPaid, 0);
+                      if (activeDeposited >= activeTarget) return 'Completed';
+                      return activePhase.status;
+                    })()}
                     onChange={(e) => handleUpdateStatus(e.target.value as any)}
-                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-emerald-600 shadow-sm"
+                    className={`rounded-lg border px-2.5 py-1.5 text-xs font-bold outline-none focus:border-emerald-600 shadow-sm transition-all duration-150 ${
+                      (() => {
+                        const activeTarget = activePhase.subscriptionPerMember * memberCount;
+                        const activeDeposited = activePhase.deposits.reduce((sum, d) => sum + d.amountPaid, 0);
+                        const isCompleted = activeDeposited >= activeTarget || activePhase.status === 'Completed';
+                        return isCompleted 
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
+                          : activePhase.status === 'In-Progress' 
+                            ? 'bg-amber-100 text-amber-800 border-amber-200' 
+                            : 'bg-slate-100 text-slate-600 border-slate-200';
+                      })()
+                    }`}
                   >
                     <option value="Pending">{language === 'bn' ? 'স্থগিত / পেন্ডিং' : 'Pending'}</option>
                     <option value="In-Progress">{language === 'bn' ? 'চলমান / ইন-প্রগ্রেস' : 'In-Progress'}</option>
@@ -905,13 +943,27 @@ export default function Construction() {
                   </select>
                 ) : (
                   <span className={`px-2.5 py-1 rounded-md text-xs font-bold ${
-                    activePhase.status === 'Completed' 
-                      ? 'bg-emerald-100 text-emerald-800' 
-                      : activePhase.status === 'In-Progress' 
-                        ? 'bg-amber-100 text-amber-800' 
-                        : 'bg-slate-100 text-slate-600'
+                    (() => {
+                      const activeTarget = activePhase.subscriptionPerMember * memberCount;
+                      const activeDeposited = activePhase.deposits.reduce((sum, d) => sum + d.amountPaid, 0);
+                      const isCompleted = activeDeposited >= activeTarget || activePhase.status === 'Completed';
+                      return isCompleted 
+                        ? 'bg-emerald-100 text-emerald-800' 
+                        : activePhase.status === 'In-Progress' 
+                          ? 'bg-amber-100 text-amber-800' 
+                          : 'bg-slate-100 text-slate-600';
+                    })()
                   }`}>
-                    {activePhase.status === 'Completed' ? (language === 'bn' ? 'সম্পন্ন' : 'Completed') : activePhase.status === 'In-Progress' ? (language === 'bn' ? 'চলমান' : 'In-Progress') : (language === 'bn' ? 'স্থগিত' : 'Pending')}
+                    {(() => {
+                      const activeTarget = activePhase.subscriptionPerMember * memberCount;
+                      const activeDeposited = activePhase.deposits.reduce((sum, d) => sum + d.amountPaid, 0);
+                      const isCompleted = activeDeposited >= activeTarget || activePhase.status === 'Completed';
+                      return isCompleted 
+                        ? (language === 'bn' ? 'সম্পন্ন' : 'Completed') 
+                        : activePhase.status === 'In-Progress' 
+                          ? (language === 'bn' ? 'চলমান' : 'In-Progress') 
+                          : (language === 'bn' ? 'স্থগিত' : 'Pending');
+                    })()}
                   </span>
                 )}
               </div>
@@ -1257,6 +1309,20 @@ export default function Construction() {
                       ))
                     )}
                   </tbody>
+                  {filteredPhaseExpenses.length > 0 && (
+                    <tfoot className="bg-slate-50 border-t border-slate-200">
+                      <tr className="font-bold text-slate-800">
+                        <td className="py-3 px-4" colSpan={3}></td>
+                        <td className="py-3 px-4 text-left font-mono text-[10px] uppercase tracking-wider text-slate-500 font-bold">
+                          {language === 'bn' ? 'মোট ব্যয়ের পরিমাণ:' : 'Total Expenditure:'}
+                        </td>
+                        <td className="py-3 px-4 text-right text-rose-600 text-sm font-extrabold whitespace-nowrap font-sans">
+                          {formatBDT(filteredPhaseExpenses.reduce((sum, e) => sum + e.amount, 0))}
+                        </td>
+                        <td className="py-3 px-4 text-center print:hidden"></td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
 
