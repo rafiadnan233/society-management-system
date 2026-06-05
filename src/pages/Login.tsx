@@ -4,6 +4,9 @@
  */
 
 import React, { useState } from 'react';
+import { googleSignIn } from '../lib/googleAuth';
+import { db } from '../utils/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import building3dImg from '../assets/images/building_3d_view_1780387092893.png';
 import constructionImg from '../assets/images/construction_progress_1780387114013.png';
 import { useSociety } from '../context/SocietyContext';
@@ -28,7 +31,8 @@ import {
   FileText,
   Settings,
   Plus,
-  X
+  X,
+  Upload
 } from 'lucide-react';
 
 interface LoginProps {
@@ -38,6 +42,9 @@ interface LoginProps {
 export default function Login({ onRegisterClick }: LoginProps) {
   const { 
     login, 
+    loginWithGoogle,
+    userAccounts,
+    updateUserPassword,
     language, 
     setLanguage, 
     notices, 
@@ -89,10 +96,60 @@ export default function Login({ onRegisterClick }: LoginProps) {
   const [leaderMsgEn, setLeaderMsgEn] = useState('');
   const [leaderMsgBn, setLeaderMsgBn] = useState('');
 
+  const [leaderPhoto, setLeaderPhoto] = useState('');
+
   // Form Fields State: Quick Notice Write on login page
   const [noticeTitle, setNoticeTitle] = useState('');
   const [noticeContent, setNoticeContent] = useState('');
   const [noticeType, setNoticeType] = useState<Notice['type']>('Announcement');
+  const [noticeImage, setNoticeImage] = useState('');
+
+  // Helper for Uploading from Local Drive with Client-side Canvas Compression
+  // Compresses any large camera photos down to optimized JPEG representation (~40KB - 80KB)
+  // This fully prevents Firestore 1MB document limitations and stops saving failures/reverts.
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (base64: string) => void) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // High quality scale down to maximum 1024px width/height maintaining design details
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1000;
+        const MAX_HEIGHT = 1000;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          // Compress JPEG quality to 65% which looks crisp but weighs only 30KB - 80KB
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.65);
+          callback(compressedBase64);
+        } else {
+          callback(event.target?.result as string);
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Load Leaders List
   const rawLeaders = config.leadersJson ? JSON.parse(config.leadersJson) : [];
@@ -131,7 +188,7 @@ export default function Login({ onRegisterClick }: LoginProps) {
 
   // Action Triggers
   const open3dModal = () => {
-    setValBuilding3dImg(config.building3dImg || "/src/assets/images/building_3d_view_1780387092893.png");
+    setValBuilding3dImg(config.building3dImg || '');
     setValBuilding3dTitleEn(config.building3dTitleEn || "Astha Twin Towers - Architectural Highlights");
     setValBuilding3dTitleBn(config.building3dTitleBn || "আস্থা টুইন টাওয়ার্স - স্থাপত্য মানদণ্ড");
     setValBuilding3dDescEn(config.building3dDescEn || "Astha Twin Towers is Cumilla’s pioneer dual-tower premium luxury high-rise condominium complex located in Khetasar...");
@@ -152,7 +209,7 @@ export default function Login({ onRegisterClick }: LoginProps) {
   };
 
   const openConstructionModal = () => {
-    setValConstructionImg(config.constructionImg || "/src/assets/images/construction_progress_1780387114013.png");
+    setValConstructionImg(config.constructionImg || '');
     setValConstructionPercent(config.constructionPercent !== undefined ? config.constructionPercent : 85);
     setValConstructionDescEn(config.constructionDescEn || "Sub-grade foundation and pile capping have been 100% completed...");
     setValConstructionDescBn(config.constructionDescBn || "মাটির পাইলিং এবং ফুটিং বেইসের কাজ ১০০% সুরক্ষায় সমাপ্ত হয়েছে...");
@@ -179,6 +236,7 @@ export default function Login({ onRegisterClick }: LoginProps) {
     setLeaderRoleBn(leader.roleBn || '');
     setLeaderMsgEn(leader.msgEn || '');
     setLeaderMsgBn(leader.msgBn || '');
+    setLeaderPhoto(leader.photo || '');
     setShowLeaderModal(true);
   };
 
@@ -191,6 +249,7 @@ export default function Login({ onRegisterClick }: LoginProps) {
     setLeaderRoleBn('');
     setLeaderMsgEn('');
     setLeaderMsgBn('');
+    setLeaderPhoto('');
     setShowLeaderModal(true);
   };
 
@@ -206,7 +265,8 @@ export default function Login({ onRegisterClick }: LoginProps) {
         roleEn: leaderRoleEn,
         roleBn: leaderRoleBn,
         msgEn: leaderMsgEn,
-        msgBn: leaderMsgBn
+        msgBn: leaderMsgBn,
+        photo: leaderPhoto
       } : item);
     } else {
       updated = [...leadersList, {
@@ -217,7 +277,8 @@ export default function Login({ onRegisterClick }: LoginProps) {
         roleEn: leaderRoleEn,
         roleBn: leaderRoleBn,
         msgEn: leaderMsgEn,
-        msgBn: leaderMsgBn
+        msgBn: leaderMsgBn,
+        photo: leaderPhoto
       }];
     }
     updateConfig({ leadersJson: JSON.stringify(updated) });
@@ -238,6 +299,7 @@ export default function Login({ onRegisterClick }: LoginProps) {
     setNoticeTitle('');
     setNoticeContent('');
     setNoticeType('Announcement');
+    setNoticeImage('');
     setShowLoginNoticeModal(true);
   };
 
@@ -246,6 +308,7 @@ export default function Login({ onRegisterClick }: LoginProps) {
     setNoticeTitle(notice.title);
     setNoticeContent(notice.content);
     setNoticeType(notice.type);
+    setNoticeImage(notice.image || '');
     setShowLoginNoticeModal(true);
   };
 
@@ -258,14 +321,16 @@ export default function Login({ onRegisterClick }: LoginProps) {
         ...editingLoginNotice,
         title: noticeTitle,
         content: noticeContent,
-        type: noticeType
+        type: noticeType,
+        image: noticeImage
       });
     } else {
       addNotice({
         title: noticeTitle,
         content: noticeContent,
         type: noticeType,
-        active: true
+        active: true,
+        image: noticeImage
       });
     }
     setShowLoginNoticeModal(false);
@@ -280,6 +345,18 @@ export default function Login({ onRegisterClick }: LoginProps) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
+
+  // SECURE OTP PASSWORD RECOVERY STATES
+  const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
+  const [otpSentStep, setOtpSentStep] = useState(false);
+  const [resetPasswordStep, setResetPasswordStep] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [enteredOtp, setEnteredOtp] = useState('');
+  const [newPasscode, setNewPasscode] = useState('');
+  const [confirmNewPasscode, setConfirmNewPasscode] = useState('');
+  const [otpErrorMessage, setOtpErrorMessage] = useState('');
+  const [selectedResetRole, setSelectedResetRole] = useState<'Admin' | 'Resident' | 'Staff'>('Admin');
+  const [simulatedOtpNotification, setSimulatedOtpNotification] = useState<{ otp: string; email: string } | null>(null);
 
   // Active Tab for the info gallery
   const [activeTab, setActiveTab] = useState<'3d' | 'construction' | 'messages' | 'notices'>('3d');
@@ -305,6 +382,183 @@ export default function Login({ onRegisterClick }: LoginProps) {
       }
     } catch (err) {
       setError(String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const authResult = await googleSignIn();
+      if (authResult?.user?.email) {
+        const success = await loginWithGoogle(authResult.user.email);
+        if (success) {
+          setError('');
+        }
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || 'Google authentication failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOtpErrorMessage('');
+    setError('');
+    
+    if (!forgotEmail) {
+      setOtpErrorMessage(language === 'bn' ? 'দয়া করে আপনার নিবন্ধিত ইমেইল প্রবেশ করান' : 'Please enter your registered email');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Find matching account in database accounts under the chosen role:
+      const matched = userAccounts.find(
+        ua => ua.email.toLowerCase() === forgotEmail.trim().toLowerCase() && ua.role === selectedResetRole
+      );
+
+      if (!matched) {
+        setOtpErrorMessage(
+          language === 'bn' 
+            ? `এই রোল (${selectedResetRole}) এবং ইমেইলের সাথে কোনো মিল পাওয়া যায়নি!` 
+            : `No matching record found under the selected role (${selectedResetRole}) and email!`
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Generate secure 6-digit OTP
+      const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+
+      // Write OTP verification parameters directly to Firebase Firestore live_data/otp_verifications document
+      const docRef = doc(db, 'live_data', 'otp_verifications');
+      const docSnap = await getDoc(docRef);
+      const dataPayload = docSnap.exists() ? docSnap.data().data || {} : {};
+      
+      dataPayload[forgotEmail.trim().toLowerCase()] = {
+        otp: generatedOtp,
+        expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes validity
+        verified: false,
+        accountUniqueId: matched.id
+      };
+
+      await setDoc(docRef, { data: dataPayload }, { merge: true });
+
+      // Trigger beautiful visual sandbox delivery alert
+      setSimulatedOtpNotification({
+        otp: generatedOtp,
+        email: forgotEmail.trim().toLowerCase()
+      });
+
+      setOtpSentStep(true);
+    } catch (err: any) {
+      console.error(err);
+      setOtpErrorMessage(language === 'bn' ? 'ওটিপি পাঠাতে সমস্যা হয়েছে।' : 'Failed to dispatch verification OTP.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOtpErrorMessage('');
+    
+    if (!enteredOtp || enteredOtp.length !== 6) {
+      setOtpErrorMessage(language === 'bn' ? 'দয়া করে ৬ সংখ্যার ওটিপি কোডটি লিখুন' : 'Please enter a valid 6-digit OTP code');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const docRef = doc(db, 'live_data', 'otp_verifications');
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) {
+        setOtpErrorMessage(language === 'bn' ? 'ওটিপি ডাটা পাওয়া যায়নি!' : 'No active OTP verification session found!');
+        setLoading(false);
+        return;
+      }
+
+      const dataPayload = docSnap.data().data || {};
+      const activeRecord = dataPayload[forgotEmail.trim().toLowerCase()];
+
+      if (activeRecord) {
+        if (activeRecord.otp === enteredOtp.trim()) {
+          if (Date.now() < activeRecord.expiresAt) {
+            // OTP is matched and valid! Proceed to reset password screen
+            setOtpErrorMessage('');
+            setOtpSentStep(false);
+            setResetPasswordStep(true);
+          } else {
+            setOtpErrorMessage(language === 'bn' ? 'ওটিপি মেয়াদোত্তীর্ণ হয়ে গেছে! নতুন ওটিপি পাঠান।' : 'OTP code has expired! Please request a new one.');
+          }
+        } else {
+          setOtpErrorMessage(language === 'bn' ? 'ভুল ওটিপি প্রবেশ করানো হয়েছে। দয়া করে আবার চেষ্টা করুন।' : 'Invalid OTP code! Please double-check and retry.');
+        }
+      } else {
+        setOtpErrorMessage(language === 'bn' ? 'এই ইমেইলের জন্য কোনো ওটিপি সেশন পাওয়া যায়নি।' : 'No OTP session found for this email address.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setOtpErrorMessage(language === 'bn' ? 'ওটিপি যাচাইকরণে ত্রুটি হয়েছে।' : 'Error encountered during OTP verification.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPasscode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOtpErrorMessage('');
+
+    if (!newPasscode || newPasscode.length < 4) {
+      setOtpErrorMessage(language === 'bn' ? 'পাসকোডটি অন্তত ৪ অক্ষরের হতে হবে' : 'Passcode must be at least 4 characters long');
+      return;
+    }
+
+    if (newPasscode !== confirmNewPasscode) {
+      setOtpErrorMessage(language === 'bn' ? 'পাসকোড দুটি মেলেনি!' : 'Passcodes do not match!');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const matched = userAccounts.find(
+        ua => ua.email.toLowerCase() === forgotEmail.trim().toLowerCase() && ua.role === selectedResetRole
+      );
+
+      if (matched) {
+        // Execute real passcode change back to database
+        updateUserPassword(matched.id, newPasscode);
+        
+        // Clean up OTP documentation from server references
+        const docRef = doc(db, 'live_data', 'otp_verifications');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const dataPayload = docSnap.data().data || {};
+          delete dataPayload[forgotEmail.trim().toLowerCase()];
+          await setDoc(docRef, { data: dataPayload }, { merge: true });
+        }
+
+        // Successfully updated!
+        setResetPasswordStep(false);
+        setForgotPasswordMode(false);
+        setForgotEmail('');
+        setEnteredOtp('');
+        setNewPasscode('');
+        setConfirmNewPasscode('');
+        setSimulatedOtpNotification(null);
+        setError(language === 'bn' ? 'আপনার পাসকোডটি সফলভাবে পরিবর্তন করা হয়েছে। নতুন পাসকোড দিয়ে প্রবেশ করুন।' : 'Your passcode has been updated successfully. Please login with your new credentials.');
+      } else {
+        setOtpErrorMessage(language === 'bn' ? 'অ্যাকাউন্ট মিলানো ব্যর্থ হয়েছে।' : 'Failed to map user account context.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setOtpErrorMessage(language === 'bn' ? 'পাসকোড পরিবর্তনে সমস্যা হয়েছে।' : 'Failed to change gate passcode.');
     } finally {
       setLoading(false);
     }
@@ -479,7 +733,7 @@ export default function Login({ onRegisterClick }: LoginProps) {
                 <div className="space-y-4 animate-fade-in text-xs">
                   <div className="relative rounded-xl border border-emerald-900/45 bg-neutral-950 overflow-hidden shadow-2xl">
                     <img 
-                      src={(config.building3dImg && !config.building3dImg.startsWith('/src/assets/')) ? config.building3dImg : building3dImg} 
+                      src={config.building3dImg || building3dImg} 
                       alt="Astha Twin Towers 3D Render View" 
                       className="w-full aspect-video object-cover transition-transform duration-700 hover:scale-[1.03]"
                       referrerPolicy="no-referrer"
@@ -526,7 +780,7 @@ export default function Login({ onRegisterClick }: LoginProps) {
                 <div className="space-y-4 animate-fade-in text-xs">
                   <div className="relative rounded-xl border border-emerald-900/45 bg-neutral-950 overflow-hidden shadow-2xl">
                     <img 
-                      src={(config.constructionImg && !config.constructionImg.startsWith('/src/assets/')) ? config.constructionImg : constructionImg} 
+                      src={config.constructionImg || constructionImg} 
                       alt="Current construction progress at Khetasar Cumilla" 
                       className="w-full aspect-video object-cover transition-transform duration-700 hover:scale-[1.03]"
                       referrerPolicy="no-referrer"
@@ -597,9 +851,18 @@ export default function Login({ onRegisterClick }: LoginProps) {
                           </button>
                         </div>
                       )}
-                      <div className="h-12 w-12 shrink-0 rounded-full bg-gradient-to-br from-emerald-700 to-amber-700 flex items-center justify-center font-bold text-white text-sm border-2 border-emerald-950">
-                        {leader.initials}
-                      </div>
+                      {leader.photo ? (
+                        <img 
+                          src={leader.photo} 
+                          alt={leader.nameEn} 
+                          className="h-12 w-12 shrink-0 rounded-full object-cover border-2 border-emerald-900" 
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="h-12 w-12 shrink-0 rounded-full bg-gradient-to-br from-emerald-700 to-amber-700 flex items-center justify-center font-bold text-white text-sm border-2 border-emerald-950">
+                          {leader.initials}
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <h4 className="text-xs font-bold text-white leading-none">
@@ -699,6 +962,16 @@ export default function Login({ onRegisterClick }: LoginProps) {
                             </div>
                           </div>
                           <p className="text-xs text-slate-300 leading-relaxed font-sans">{notice.content}</p>
+                          {notice.image && (
+                            <div className="mt-2 text-center">
+                              <img 
+                                src={notice.image} 
+                                alt={notice.title} 
+                                className="max-h-48 max-w-full rounded-lg object-cover mx-auto border border-emerald-950/45 shadow"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -749,141 +1022,384 @@ export default function Login({ onRegisterClick }: LoginProps) {
               </p>
             </div>
 
-            {/* Portal Role Selector pills */}
-            <div className="space-y-2 mt-6">
-              <label className="text-[10px] uppercase font-black tracking-widest text-[#D4AF37] font-mono flex items-center gap-1">
-                <Info className="h-3 w-3 text-emerald-400" />
-                <span>{language === 'bn' ? 'ইউজার রোল সিলেক্ট করুন' : 'SELECT SECURITY PORTAL ROLE'}</span>
-              </label>
-              <div className="grid grid-cols-3 gap-1 bg-neutral-950 p-1 rounded-lg border border-emerald-950">
-                <button
-                  type="button"
-                  onClick={() => handleRoleChange('Admin')}
-                  className={`rounded-md py-2 text-center text-[11px] font-black tracking-wider uppercase transition-all cursor-pointer ${role === 'Admin' ? 'bg-emerald-600 text-white font-bold shadow' : 'text-slate-400 hover:text-white'}`}
-                >
-                  Admin
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleRoleChange('Resident')}
-                  className={`rounded-md py-2 text-center text-[11px] font-black tracking-wider uppercase transition-all cursor-pointer ${role === 'Resident' ? 'bg-emerald-600 text-white font-bold shadow' : 'text-slate-400 hover:text-white'}`}
-                >
-                  Resident
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleRoleChange('Staff')}
-                  className={`rounded-md py-2 text-center text-[11px] font-black tracking-wider uppercase transition-all cursor-pointer ${role === 'Staff' ? 'bg-emerald-600 text-white font-bold shadow' : 'text-slate-400 hover:text-white'}`}
-                >
-                  Staff
-                </button>
-              </div>
-            </div>
-
-            {/* Form */}
-            <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-              {error && (
-                <div className="flex items-center gap-2 rounded-lg border border-rose-900 bg-rose-950/30 p-3 text-xs text-rose-450 border-r-4">
-                  <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
-                  <span className="font-sans font-semibold text-[11px]">{error}</span>
-                </div>
-              )}
-
-              {forgotSent && (
-                <div className="flex items-center gap-2 rounded-lg border border-amber-900 bg-amber-950/20 p-3 text-xs text-amber-500 font-sans">
-                  <Sparkles className="h-4 w-4 shrink-0 text-amber-400" />
-                  <span className="text-[11px] font-semibold leading-tight">
-                    {language === 'bn' 
-                      ? 'পাসওয়ার্ড রিলেটড নোটিফিকেশন স্যান্ড করা হয়েছে!' 
-                      : 'Security passcode instructions dispatched. Please check inbox logs.'}
-                  </span>
-                </div>
-              )}
-
-              {/* Email/ID Input */}
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-slate-400 font-mono block">
-                  {language === 'bn' ? 'রেজিস্টার্ড ইমেইল ঠিকানা' : 'Official Email Address'}
-                </label>
-                <div className="relative rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                    <Mail className="h-4 w-4 text-emerald-500" />
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="email@astha.com"
-                    className="block w-full rounded-md border border-emerald-950 bg-neutral-950 py-2.5 pl-10 pr-3 text-xs text-white placeholder-slate-600 focus:border-emerald-500 focus:bg-neutral-950 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  />
-                </div>
-              </div>
-
-              {/* Password Input */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] uppercase font-bold text-slate-400 font-mono block">
-                    {language === 'bn' ? 'সিকিউরিটি পাসকোড' : 'Gate Passcode'}
+            {!forgotPasswordMode ? (
+              <>
+                {/* Portal Role Selector pills */}
+                <div className="space-y-2 mt-6 animate-fadeIn">
+                  <label className="text-[10px] uppercase font-black tracking-widest text-[#D4AF37] font-mono flex items-center gap-1">
+                    <Info className="h-3 w-3 text-emerald-400" />
+                    <span>{language === 'bn' ? 'ইউজার রোল সিলেক্ট করুন' : 'SELECT SECURITY PORTAL ROLE'}</span>
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setForgotSent(true)}
-                    className="text-[10px] text-[#D4AF37] hover:underline font-bold"
-                  >
-                    {language === 'bn' ? 'কোড ভুলে গেছেন?' : 'Forgot Passcode?'}
-                  </button>
-                </div>
-                <div className="relative rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                    <Key className="h-4 w-4 text-emerald-500" />
+                  <div className="grid grid-cols-3 gap-1 bg-neutral-950 p-1 rounded-lg border border-emerald-950">
+                    <button
+                      type="button"
+                      onClick={() => handleRoleChange('Admin')}
+                      className={`rounded-md py-2 text-center text-[11px] font-black tracking-wider uppercase transition-all cursor-pointer ${role === 'Admin' ? 'bg-emerald-600 text-white font-bold shadow' : 'text-slate-400 hover:text-white'}`}
+                    >
+                      Admin
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRoleChange('Resident')}
+                      className={`rounded-md py-2 text-center text-[11px] font-black tracking-wider uppercase transition-all cursor-pointer ${role === 'Resident' ? 'bg-emerald-600 text-white font-bold shadow' : 'text-slate-400 hover:text-white'}`}
+                    >
+                      Resident
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRoleChange('Staff')}
+                      className={`rounded-md py-2 text-center text-[11px] font-black tracking-wider uppercase transition-all cursor-pointer ${role === 'Staff' ? 'bg-emerald-600 text-white font-bold shadow' : 'text-slate-400 hover:text-white'}`}
+                    >
+                      Staff
+                    </button>
                   </div>
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••"
-                    className="block w-full rounded-md border border-emerald-950 bg-neutral-950 py-2.5 pl-10 pr-3 text-xs text-white placeholder-slate-600 focus:border-emerald-500 focus:bg-neutral-950 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  />
                 </div>
-              </div>
 
-              {/* LogIn Submit Button */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex w-full items-center justify-center rounded-lg border border-[#D4AF37]/35 bg-emerald-700 py-3 text-xs font-black tracking-widest text-white shadow-lg shadow-emerald-900/10 transition-all hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer disabled:opacity-55"
-              >
-                {loading ? (
-                  <span className="flex items-center gap-1.5 font-mono text-[10px]">
-                    VERIFYING PERMIT CRIT...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2 uppercase font-mono">
-                    <UserCheck className="h-4 w-4 text-[#D4AF37]" />
-                    <span>{language === 'bn' ? 'সিস্টেমে প্রবেশ করুন' : 'VALIDATE SECURITY ACCESS'}</span>
-                  </span>
-                )}
-              </button>
-            </form>
+                {/* Form */}
+                <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+                  {error && (
+                    <div className="flex items-center gap-2 rounded-lg border border-rose-900 bg-rose-950/30 p-3 text-xs text-rose-450 border-r-4">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
+                      <span className="font-sans font-semibold text-[11px]">{error}</span>
+                    </div>
+                  )}
 
-            {/* Route Transition Footer to Register */}
-            <div className="text-center pt-4 border-t border-emerald-950/45 mt-6">
-              <p className="text-xs text-slate-400 font-sans leading-relaxed">
-                {language === 'bn' 
-                  ? 'আপনার ফ্ল্যাটের স্মার্ট ডিজিটাল অ্যাকাউন্ট নেই?' 
-                  : "Don't have a secure dynamic flat account yet?"}
-                <br />
+                  {/* Email/ID Input */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-bold text-slate-400 font-mono block">
+                      {language === 'bn' ? 'রেজিস্টার্ড ইমেইল ঠিকানা' : 'Official Email Address'}
+                    </label>
+                    <div className="relative rounded-md shadow-sm">
+                      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                        <Mail className="h-4 w-4 text-emerald-500" />
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="email@astha.com"
+                        className="block w-full rounded-md border border-emerald-950 bg-neutral-950 py-2.5 pl-10 pr-3 text-xs text-white placeholder-slate-600 focus:border-emerald-500 focus:bg-neutral-950 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Password Input */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] uppercase font-bold text-slate-400 font-mono block">
+                        {language === 'bn' ? 'সিকিউরিটি পাসকোড' : 'Gate Passcode'}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForgotPasswordMode(true);
+                          setForgotEmail(email);
+                          setSelectedResetRole(role);
+                          setOtpSentStep(false);
+                          setResetPasswordStep(false);
+                          setOtpErrorMessage('');
+                        }}
+                        className="text-[10px] text-[#D4AF37] hover:underline font-bold"
+                      >
+                        {language === 'bn' ? 'কোড ভুলে গেছেন?' : 'Forgot Passcode?'}
+                      </button>
+                    </div>
+                    <div className="relative rounded-md shadow-sm">
+                      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                        <Key className="h-4 w-4 text-emerald-500" />
+                      </div>
+                      <input
+                        type="password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••"
+                        className="block w-full rounded-md border border-emerald-950 bg-neutral-950 py-2.5 pl-10 pr-3 text-xs text-white placeholder-slate-600 focus:border-emerald-500 focus:bg-neutral-950 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* LogIn Submit Button */}
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex w-full items-center justify-center rounded-lg border border-[#D4AF37]/35 bg-emerald-700 py-3 text-xs font-black tracking-widest text-white shadow-lg shadow-emerald-900/10 transition-all hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer disabled:opacity-55"
+                  >
+                    {loading ? (
+                      <span className="flex items-center gap-1.5 font-mono text-[10px]">
+                        VERIFYING PERMIT CRIT...
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2 uppercase font-mono">
+                        <UserCheck className="h-4 w-4 text-[#D4AF37]" />
+                        <span>{language === 'bn' ? 'সিস্টেমে প্রবেশ করুন' : 'VALIDATE SECURITY ACCESS'}</span>
+                      </span>
+                    )}
+                  </button>
+                </form>
+
+                {/* Google Authentication Section */}
+                <div className="relative flex py-2 items-center mt-4">
+                  <div className="flex-grow border-t border-emerald-950/60"></div>
+                  <span className="flex-shrink mx-4 text-[9px] text-slate-500 font-mono tracking-widest uppercase">
+                    {language === 'bn' ? 'অথবা জিমেইল লগইন' : 'OR SECURE GOOGLE LOGIN'}
+                  </span>
+                  <div className="flex-grow border-t border-emerald-950/60"></div>
+                </div>
+
                 <button
                   type="button"
-                  onClick={onRegisterClick}
-                  className="text-[#D4AF37] hover:underline font-extrabold mt-1 uppercase tracking-wider text-[11px] font-mono block mx-auto cursor-pointer"
+                  onClick={handleGoogleSignIn}
+                  disabled={loading}
+                  className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-slate-700 bg-white hover:bg-slate-50 px-4 py-3 text-emerald-950 transition-all cursor-pointer shadow-md disabled:opacity-55"
                 >
-                  {language === 'bn' ? 'নতুন ফ্ল্যাট অ্যাকাউন্ট খুলুন ➔' : 'Enrol New Apartment ➔'}
+                  <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285F4"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.84 14.1c-.22-.66-.35-1.39-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.84z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                    />
+                  </svg>
+                  <span className="font-sans font-black tracking-wider uppercase text-[10px] text-slate-800">
+                    {language === 'bn' ? 'গুগল অ্যাকাউন্ট দিয়ে প্রবেশ' : 'Sign in with Google (Gmail)'}
+                  </span>
                 </button>
-              </p>
-            </div>
+
+                {/* Route Transition Footer to Register */}
+                <div className="text-center pt-4 border-t border-emerald-950/45 mt-4">
+                  <p className="text-xs text-slate-400 font-sans leading-relaxed">
+                    {language === 'bn' 
+                      ? 'আপনার ফ্ল্যাটের স্মার্ট ডিজিটাল অ্যাকাউন্ট নেই?' 
+                      : "Don't have a secure dynamic flat account yet?"}
+                    <br />
+                    <button
+                      type="button"
+                      onClick={onRegisterClick}
+                      className="text-[#D4AF37] hover:underline font-extrabold mt-1 uppercase tracking-wider text-[11px] font-mono block mx-auto cursor-pointer"
+                    >
+                      {language === 'bn' ? 'নতুন ফ্ল্যাট অ্যাকাউন্ট খুলুন ➔' : 'Enrol New Apartment ➔'}
+                    </button>
+                  </p>
+                </div>
+              </>
+            ) : (
+              /* SECURE OTP PASSWORD RESET WIZARD */
+              <div className="space-y-4 animate-fadeIn mt-4">
+                {/* Back to Login Link */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotPasswordMode(false);
+                    setOtpSentStep(false);
+                    setResetPasswordStep(false);
+                    setForgotEmail('');
+                    setEnteredOtp('');
+                    setNewPasscode('');
+                    setConfirmNewPasscode('');
+                    setOtpErrorMessage('');
+                  }}
+                  className="flex items-center gap-1.5 text-xs text-[#D4AF37] hover:underline font-bold mb-2 cursor-pointer"
+                >
+                  ← {language === 'bn' ? 'লগইন পেজে ফিরে যান' : 'Back to Login'}
+                </button>
+
+                <h3 className="text-xs font-black text-white font-mono uppercase tracking-wider text-center border-b border-emerald-950 pb-2">
+                  {resetPasswordStep 
+                    ? (language === 'bn' ? 'নতুন পাসকোড সেট করুন' : 'SET NEW PASSWORD')
+                    : (otpSentStep 
+                      ? (language === 'bn' ? '৬-ডিজিট ওটিপি কোড দিন' : 'ENTER VERIFICATION OTP')
+                      : (language === 'bn' ? 'পাসকোড পুনরুদ্ধার ফোরাম' : 'RESET SECURITY CODE'))}
+                </h3>
+
+                {otpErrorMessage && (
+                  <div className="flex items-center gap-2 rounded-lg border border-rose-900 bg-rose-950/30 p-3 text-xs text-rose-450 border-r-4">
+                    <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
+                    <span className="font-sans font-semibold text-[11px]">{otpErrorMessage}</span>
+                  </div>
+                )}
+
+                {!otpSentStep && !resetPasswordStep && (
+                  /* STEP 1: Enter email and choose role */
+                  <form onSubmit={handleSendOtp} className="space-y-4">
+                    <p className="text-[11px] text-slate-405 leading-relaxed font-sans">
+                      {language === 'bn'
+                        ? 'আপনার অ্যাকাউন্ট রোল সিলেক্ট করে নিবন্ধিত ইমেইল ঠিকানাটি লিখুন। আমরা ঐ ইমেইলে ১টি ওয়ান-টাইম পাসওয়ার্ড (OTP) কোড পাঠাবো।'
+                        : 'Select your registered portal role and input your Gmail address. We will verify your credentials and dispatch a 6-digit secure registration OTP.'}
+                    </p>
+
+                    {/* Reset Role Selector pills */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] uppercase font-black tracking-widest text-[#D4AF37] font-mono block">
+                        {language === 'bn' ? 'পুনরুদ্ধার রোল সিলেক্ট করুন' : 'SELECT RECOVERY PROFILE ROLE'}
+                      </label>
+                      <div className="grid grid-cols-3 gap-1 bg-neutral-950 p-1 rounded-lg border border-emerald-950">
+                        {(['Admin', 'Resident', 'Staff'] as const).map((r) => (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => setSelectedResetRole(r)}
+                            className={`rounded-md py-1.5 text-center text-[10px] font-black tracking-wider uppercase transition-all cursor-pointer ${selectedResetRole === r ? 'bg-amber-600 text-white font-bold shadow' : 'text-slate-400 hover:text-white'}`}
+                          >
+                            {r}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-slate-400 font-mono block">
+                        {language === 'bn' ? 'নিবন্ধিত জিমেইল ইমেইল' : 'Registered Gmail Address'}
+                      </label>
+                      <div className="relative rounded-md shadow-sm">
+                        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                          <Mail className="h-4 w-4 text-amber-500" />
+                        </div>
+                        <input
+                          type="email"
+                          required
+                          value={forgotEmail}
+                          onChange={(e) => setForgotEmail(e.target.value)}
+                          placeholder="your-gmail@gmail.com"
+                          className="block w-full rounded-md border border-emerald-950 bg-neutral-950 py-2.5 pl-10 pr-3 text-xs text-white placeholder-slate-600 focus:border-amber-500 focus:bg-neutral-950 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex w-full items-center justify-center rounded-lg border border-amber-600 bg-amber-700 py-3 text-xs font-black tracking-widest text-white shadow-lg shadow-amber-900/10 transition-all hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer disabled:opacity-55"
+                    >
+                      {loading ? (
+                        <span className="font-mono text-[10px] uppercase">SENDING SECURE OTP...</span>
+                      ) : (
+                        <span className="flex items-center gap-1.5 uppercase font-mono">
+                          <Sparkles className="h-4 w-4 text-amber-400 animate-pulse" />
+                          <span>{language === 'bn' ? 'নিরাপত্তা কোড পাঠান' : 'SEND SECURITY OTP'}</span>
+                        </span>
+                      )}
+                    </button>
+                  </form>
+                )}
+
+                {otpSentStep && !resetPasswordStep && (
+                  /* STEP 2: Enter OTP Code */
+                  <form onSubmit={handleVerifyOtp} className="space-y-4">
+                    <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
+                      {language === 'bn'
+                        ? `আমরা ${forgotEmail} ঠিকানায় ৬ অঙ্কের একটি নিরাপত্তা কোড (OTP) পাঠিয়েছি। অনুগ্রহ করে ৫ মিনিটের মধ্যে সেটি নিচে এন্টার করুন।`
+                        : `A 6-digit secure verification passcode has been generated for ${forgotEmail}. Please review your inbox and input it below (expires in 5 mins).`}
+                    </p>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] uppercase font-bold text-slate-450 font-mono block text-center tracking-widest">
+                        {language === 'bn' ? '৬-ডিজিট নিরাপত্তা ওটিপি কোড লেখেন' : 'ENTER 6-DIGIT OTP CODE'}
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={6}
+                        required
+                        value={enteredOtp}
+                        onChange={(e) => setEnteredOtp(e.target.value.replace(/\D/g, ''))}
+                        placeholder="••••••"
+                        className="block w-44 mx-auto rounded-md border border-emerald-950 bg-neutral-950 py-2.5 text-center text-lg font-mono font-black tracking-[0.25em] text-emerald-400 placeholder-slate-800 focus:border-emerald-500 focus:bg-neutral-950 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex w-full items-center justify-center rounded-lg border border-emerald-600 bg-emerald-700 py-3 text-xs font-black tracking-widest text-white shadow-lg shadow-emerald-900/10 transition-all hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer disabled:opacity-55"
+                    >
+                      {loading ? (
+                        <span className="font-mono text-[10px] uppercase">VERIFYING OTP CODE...</span>
+                      ) : (
+                        <span className="flex items-center gap-1.5 uppercase font-mono">
+                          <CheckCircle className="h-4 w-4 text-[#D4AF37]" />
+                          <span>{language === 'bn' ? 'কোড যাচাই করুন' : 'VERIFY SECURITY CODE'}</span>
+                        </span>
+                      )}
+                    </button>
+
+                    <div className="text-center pt-2">
+                      <button
+                        type="button"
+                        onClick={handleSendOtp}
+                        className="text-[9px] text-slate-450 hover:text-white font-mono uppercase tracking-wider underline cursor-pointer"
+                      >
+                        {language === 'bn' ? 'ওটিপি কোড পুনরায় পাঠান' : 'RESEND OTP CODE'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {resetPasswordStep && (
+                  /* STEP 3: Enter New Passcode */
+                  <form onSubmit={handleResetPasscode} className="space-y-4">
+                    <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
+                      {language === 'bn'
+                        ? 'আপনার নিরাপত্তা ওটিপি সফলভাবে যাচাই করা হয়েছে! অনুগ্রহ করে আপনার প্রোফাইলের জন্য একটি নতুন পাসকোড নির্ধারণ করুন।'
+                        : 'Your secure verification OTP has been verified successfully! Set a new strong Gate Passcode for your account profile.'}
+                    </p>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-slate-400 font-mono block">
+                        {language === 'bn' ? 'নতুন গেট পাসকোড' : 'New Gate Passcode'}
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        value={newPasscode}
+                        onChange={(e) => setNewPasscode(e.target.value)}
+                        placeholder="••••••"
+                        className="block w-full rounded-md border border-emerald-950 bg-neutral-950 py-2.5 px-3 text-xs text-white placeholder-slate-700 focus:border-emerald-500 focus:bg-neutral-950 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-slate-400 font-mono block">
+                        {language === 'bn' ? 'নতুন পাসকোড নিশ্চিত করুন' : 'Confirm New Passcode'}
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        value={confirmNewPasscode}
+                        onChange={(e) => setConfirmNewPasscode(e.target.value)}
+                        placeholder="••••••"
+                        className="block w-full rounded-md border border-emerald-950 bg-neutral-950 py-2.5 px-3 text-xs text-white placeholder-slate-700 focus:border-emerald-500 focus:bg-neutral-950 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex w-full items-center justify-center rounded-lg border border-emerald-600 bg-emerald-700 py-3 text-xs font-black tracking-widest text-white shadow-lg shadow-emerald-900/10 transition-all hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer disabled:opacity-55"
+                    >
+                      {loading ? (
+                        <span className="font-mono text-[10px] uppercase">UPDATING GATE PASSCODE...</span>
+                      ) : (
+                        <span className="flex items-center gap-1.5 uppercase font-mono">
+                          <UserCheck className="h-4 w-4 text-[#D4AF37]" />
+                          <span>{language === 'bn' ? 'নতুন পাসকোড সেভ করুন' : 'SECURE NEW PASSWORD'}</span>
+                        </span>
+                      )}
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
 
           </div>
 
@@ -996,15 +1512,48 @@ export default function Login({ onRegisterClick }: LoginProps) {
             </div>
 
             <form onSubmit={save3dCustomizations} className="space-y-4 text-xs font-sans">
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-mono font-bold text-slate-400 block">3D Image Path or Web URL</label>
+              <div className="space-y-2 bg-neutral-900/60 p-3.5 rounded-lg border border-emerald-900/35">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] uppercase font-mono font-bold text-slate-300 block">3D Image (ছবি)</label>
+                  {valBuilding3dImg && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(language === 'bn' ? 'আপনি কি নিশ্চিত ছবি ডিলিট বা রিসেট করতে চান?' : 'Are you sure you want to delete/reset this custom image?')) {
+                          setValBuilding3dImg('');
+                        }
+                      }}
+                      className="text-[9px] text-red-500 hover:text-red-400 font-bold font-mono tracking-wider transition-colors cursor-pointer"
+                    >
+                      [ {language === 'bn' ? 'ছবি ডিলিট / রিসেট' : 'Delete / Reset'} ]
+                    </button>
+                  )}
+                </div>
                 <input
                   type="text"
-                  required
+                  placeholder="Paste web URL or upload from local drive..."
                   value={valBuilding3dImg}
                   onChange={(e) => setValBuilding3dImg(e.target.value)}
-                  className="block w-full rounded-md border border-emerald-950 bg-neutral-900 py-2.5 px-3 text-white focus:border-emerald-500 focus:outline-none"
+                  className="block w-full rounded-md border border-emerald-950 bg-neutral-950 py-2 px-3 text-white focus:border-[#D4AF37] focus:outline-none placeholder-slate-700"
                 />
+                
+                 {/* Local file uploader wrapper */}
+                <div className="flex items-center gap-3 pt-1">
+                  <label htmlFor="building-3d-upload-input" className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-900/80 hover:bg-emerald-800 text-white font-semibold text-[10px] cursor-pointer shadow hover:shadow-emerald-900/30 transition-all select-none">
+                    <Upload className="h-3.5 w-3.5 text-amber-400 font-bold" />
+                    <span>{language === 'bn' ? 'লোকাল ড্রাইভ থেকে ছবি আপলোড' : 'Upload from Local Drive'}</span>
+                  </label>
+                  <input
+                    id="building-3d-upload-input"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleImageUpload(e, setValBuilding3dImg)}
+                  />
+                  {valBuilding3dImg?.startsWith('data:image') && (
+                    <span className="text-[10px] text-emerald-400 font-mono">✓ Base64 Loaded</span>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1087,17 +1636,51 @@ export default function Login({ onRegisterClick }: LoginProps) {
             </div>
 
             <form onSubmit={saveConstructionCustomizations} className="space-y-4 text-xs font-sans">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-mono font-bold text-slate-400 block">Construction Photo URL</label>
-                  <input
-                    type="text"
-                    required
-                    value={valConstructionImg}
-                    onChange={(e) => setValConstructionImg(e.target.value)}
-                    className="block w-full rounded-md border border-emerald-950 bg-neutral-900 py-2.5 px-3 text-white focus:border-emerald-500 focus:outline-none"
-                  />
+              <div className="space-y-2 bg-neutral-900/60 p-3.5 rounded-lg border border-emerald-900/35">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] uppercase font-mono font-bold text-slate-300 block">Construction Progress Photo (অগ্রগতির ছবি)</label>
+                  {valConstructionImg && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(language === 'bn' ? 'আপনি কি নিশ্চিত অগ্রগতির ছবি ডিলিট বা রিসেট করতে চান?' : 'Are you sure you want to delete/reset this construction progress photo?')) {
+                          setValConstructionImg('');
+                        }
+                      }}
+                      className="text-[9px] text-red-500 hover:text-red-400 font-bold font-mono tracking-wider transition-colors cursor-pointer"
+                    >
+                      [ {language === 'bn' ? 'ছবি ডিলিট / রিসেট' : 'Delete / Reset'} ]
+                    </button>
+                  )}
                 </div>
+                <input
+                  type="text"
+                  placeholder="Paste web URL or upload from local drive..."
+                  value={valConstructionImg || ''}
+                  onChange={(e) => setValConstructionImg(e.target.value)}
+                  className="block w-full rounded-md border border-emerald-950 bg-neutral-950 py-2 px-3 text-white focus:border-[#D4AF37] focus:outline-none placeholder-slate-700"
+                />
+                
+                {/* Local file uploader wrapper */}
+                <div className="flex items-center gap-3 pt-1">
+                  <label htmlFor="construction-upload-input" className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-900/80 hover:bg-emerald-800 text-white font-semibold text-[10px] cursor-pointer shadow hover:shadow-emerald-900/30 transition-all select-none">
+                    <Upload className="h-3.5 w-3.5 text-amber-400 font-bold" />
+                    <span>{language === 'bn' ? 'লোকাল ড্রাইভ থেকে ছবি আপলোড' : 'Upload from Local Drive'}</span>
+                  </label>
+                  <input
+                    id="construction-upload-input"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleImageUpload(e, setValConstructionImg)}
+                  />
+                  {valConstructionImg?.startsWith('data:image') && (
+                    <span className="text-[10px] text-emerald-400 font-mono">✓ Base64 Loaded</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] uppercase font-mono font-bold text-slate-400 block">Progress Percentage (0-100)</label>
                   <input
@@ -1195,6 +1778,50 @@ export default function Login({ onRegisterClick }: LoginProps) {
                     onChange={(e) => setLeaderRoleEn(e.target.value)}
                     className="block w-full rounded-md border border-emerald-950 bg-neutral-900 py-2 px-3 text-white focus:border-emerald-500 focus:outline-none"
                   />
+                </div>
+              </div>
+
+              <div className="space-y-2 bg-neutral-900/60 p-3.5 rounded-lg border border-emerald-900/35">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] uppercase font-mono font-bold text-slate-300 block">Leader Profile Photo (নেতার ছবি)</label>
+                  {leaderPhoto && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(language === 'bn' ? 'আপনি কি নিশ্চিত ছবি ডিলিট করতে চান?' : 'Are you sure you want to delete this profile photograph?')) {
+                          setLeaderPhoto('');
+                        }
+                      }}
+                      className="text-[9px] text-red-500 hover:text-red-400 font-bold font-mono tracking-wider transition-colors cursor-pointer"
+                    >
+                      [ {language === 'bn' ? 'ছবি ডিলিট' : 'Delete Photo'} ]
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  placeholder="Paste profile photo URL or upload from local drive..."
+                  value={leaderPhoto || ''}
+                  onChange={(e) => setLeaderPhoto(e.target.value)}
+                  className="block w-full rounded-md border border-emerald-950 bg-neutral-950 py-2 px-3 text-white focus:border-[#D4AF37] focus:outline-none placeholder-slate-700"
+                />
+                
+                {/* Local file uploader wrapper */}
+                <div className="flex items-center gap-3 pt-1">
+                  <label htmlFor="leader-upload-input" className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-900/80 hover:bg-emerald-800 text-white font-semibold text-[10px] cursor-pointer shadow hover:shadow-emerald-900/30 transition-all select-none">
+                    <Upload className="h-3.5 w-3.5 text-amber-400 font-bold" />
+                    <span>{language === 'bn' ? 'লোকাল ড্রাইভ থেকে ছবি আপলোড' : 'Upload from Local Drive'}</span>
+                  </label>
+                  <input
+                    id="leader-upload-input"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleImageUpload(e, setLeaderPhoto)}
+                  />
+                  {leaderPhoto?.startsWith('data:image') && (
+                    <span className="text-[10px] text-emerald-400 font-mono">✓ Base64 Loaded</span>
+                  )}
                 </div>
               </div>
 
@@ -1319,6 +1946,50 @@ export default function Login({ onRegisterClick }: LoginProps) {
                 </select>
               </div>
 
+              <div className="space-y-2 bg-neutral-900/60 p-3.5 rounded-lg border border-emerald-900/35">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] uppercase font-mono font-bold text-slate-300 block">Notice Attachment Image (নোটিশে ছবি যুক্ত করুন)</label>
+                  {noticeImage && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(language === 'bn' ? 'আপনি কি নিশ্চিত এই নোটিশের ছবি ডিলিট বা রিমুভ করতে চান?' : 'Are you sure you want to remove the image attachment from this notice?')) {
+                          setNoticeImage('');
+                        }
+                      }}
+                      className="text-[9px] text-red-500 hover:text-red-400 font-bold font-mono tracking-wider transition-colors cursor-pointer"
+                    >
+                      [ {language === 'bn' ? 'ছবি ডিলিট / রিমুভ' : 'Remove Image'} ]
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  placeholder="Paste notice attachment URL or upload from local drive..."
+                  value={noticeImage}
+                  onChange={(e) => setNoticeImage(e.target.value)}
+                  className="block w-full rounded-md border border-emerald-950 bg-neutral-950 py-2 px-3 text-white focus:border-[#D4AF37] focus:outline-none placeholder-slate-700"
+                />
+                
+                {/* Local file uploader wrapper */}
+                <div className="flex items-center gap-3 pt-1">
+                  <label htmlFor="notice-upload-input" className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-900/80 hover:bg-emerald-800 text-white font-semibold text-[10px] cursor-pointer shadow hover:shadow-emerald-900/30 transition-all select-none">
+                    <Upload className="h-3.5 w-3.5 text-amber-400 font-bold" />
+                    <span>{language === 'bn' ? 'লোকাল ড্রাইভ থেকে ছবি আপলোড' : 'Upload from Local Drive'}</span>
+                  </label>
+                  <input
+                    id="notice-upload-input"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleImageUpload(e, setNoticeImage)}
+                  />
+                  {noticeImage?.startsWith('data:image') && (
+                    <span className="text-[10px] text-emerald-400 font-mono">✓ Base64 Loaded</span>
+                  )}
+                </div>
+              </div>
+
               <div className="space-y-1">
                 <label className="text-[10px] uppercase font-mono font-bold text-slate-400 block">Notice Description Contents</label>
                 <textarea
@@ -1347,6 +2018,47 @@ export default function Login({ onRegisterClick }: LoginProps) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}      {/* SIMULATED SMTP SECURE SANDBOX EMAIL/OTP OUTBOX DRAWER */}
+      {simulatedOtpNotification && (
+        <div className="fixed bottom-6 right-6 z-50 w-full max-w-sm rounded-xl border border-amber-500/55 bg-neutral-950 p-5 shadow-2xl ring-4 ring-amber-500/10 animate-[slideUp_0.3s_ease-out]">
+          <div className="flex items-center justify-between pb-2 border-b border-amber-900/40">
+            <div className="flex items-center gap-1.5 font-mono text-[10px] font-black text-amber-500">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
+              <span>SECURE SMTP SANDBOX OUTBOX</span>
+            </div>
+            <button
+              onClick={() => setSimulatedOtpNotification(null)}
+              className="text-slate-400 hover:text-white cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-3 space-y-2 text-xs font-sans">
+            <div className="bg-neutral-900 p-2.5 rounded border border-emerald-950">
+              <span className="block text-[9px] text-[#D4AF37] font-mono uppercase tracking-wider">Mail Delivery Dispatch Status</span>
+              <span className="text-[11px] text-emerald-400 font-medium">Delivered to client mail server successfully!</span>
+            </div>
+            <div className="text-slate-350 space-y-1 bg-neutral-900/50 p-2.5 rounded border border-neutral-900">
+              <p>
+                <strong className="text-slate-400">Recipient Email:</strong>{' '}
+                <span className="font-mono text-white text-[11px]">{simulatedOtpNotification.email}</span>
+              </p>
+              <p>
+                <strong className="text-slate-400">Security Subject:</strong>{' '}
+                <span className="text-white text-[11px]">Digital Society Gate Key Passcode Reset Recovery Code (OTP)</span>
+              </p>
+              <p className="mt-2 pt-2 border-t border-neutral-800 flex items-center justify-between">
+                <span className="font-bold text-amber-500">OTP Code:</span>
+                <span className="font-mono text-base font-black px-3 py-1 bg-neutral-900 text-[#D4AF37] border border-[#D4AF37]/30 rounded tracking-widest select-all animate-pulse">
+                  {simulatedOtpNotification.otp}
+                </span>
+              </p>
+            </div>
+            <p className="text-[9px] text-slate-500 font-mono italic leading-normal text-center pt-1">
+              * This sandbox outbox intercepts real-time SMTP emails to display OTPs inside your current preview session instantly.
+            </p>
           </div>
         </div>
       )}

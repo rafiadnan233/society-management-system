@@ -140,7 +140,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                   group flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-xs font-medium transition-all duration-250 cursor-pointer
                   ${isActive 
                     ? 'bg-emerald-800/60 text-white border-l-4 border-amber-400 rounded-md shadow-inner' 
-                    : 'text-emerald-100/70 hover:bg-[#043327]/60 hover:text-white'
+                    : 'text-emerald-50/90 hover:bg-[#043327]/80 hover:text-white'
                   }
                 `}
               >

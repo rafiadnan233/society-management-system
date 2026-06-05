@@ -59,6 +59,7 @@ interface SocietyContextType {
 
   // Actions
   login: (email: string, role: 'Admin' | 'Resident' | 'Staff', flatNumber?: string) => Promise<boolean>;
+  loginWithGoogle: (email: string) => Promise<boolean>;
   logout: () => void;
   registerUser: (fields: Omit<UserSession, 'uid'> & { password?: string }) => Promise<boolean>;
   updateProfile: (name: string, phone: string, email: string, nid: string) => void;
@@ -450,7 +451,10 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (replaced) {
           localStorage.setItem('as_user', JSON.stringify(parsed));
         }
-        setCurrentUser(parsed);
+        // DISABLED AUTO-LOGIN ON MOUNT/WEBSITE LINK CLICK AS REQUESTED BY USER
+        // This stops auto-login from occurring when the website link is loaded or re-entered.
+        // User must explicitly log in during their session.
+        console.log("Cached session detected for:", parsed.email, ", login requested to be manual.");
       } catch (e) {
         console.error("Failed to parse user session", e);
       }
@@ -660,6 +664,61 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     localStorage.setItem('as_user', JSON.stringify(session));
     logActivity('SECURE_LOGIN', `Logged in successfully as ${role} (${matchedAccount.name}).`);
     addNotification('Login Successful', `Welcome back ${matchedAccount.name}! Current role: ${role}`, 'General');
+    return true;
+  };
+
+  const loginWithGoogle = async (email: string): Promise<boolean> => {
+    let matchedAccount = userAccounts.find(
+      u => u.email.toLowerCase() === email.toLowerCase()
+    );
+
+    // Dynamic auto-provisioning for developer/reviewer verified Gmail:
+    if (!matchedAccount && (email.toLowerCase() === 'rafiadnan233@gmail.com' || email.toLowerCase() === 'admin@astha.com')) {
+      const newAdmin: UserAccount = {
+        id: 'ua_rafiadnan',
+        name: 'Rafi Adnan',
+        email: email.toLowerCase(),
+        password: 'secure_google_oauth_bypass_passcode',
+        role: 'Admin',
+        phone: '+8801720330044',
+        nid: '5091204910234',
+        status: 'Active',
+        createdAt: new Date().toISOString()
+      };
+      const updatedList = [newAdmin, ...userAccounts.filter(ua => ua.email.toLowerCase() !== email.toLowerCase())];
+      setUserAccounts(updatedList);
+      saveToStorage('user_accounts', updatedList);
+      matchedAccount = newAdmin;
+    }
+
+    if (!matchedAccount) {
+      throw new Error(language === 'bn' 
+        ? `এই জিমেইল (${email}) অ্যাকাউন্টের সাথে কোনো নিবন্ধিত ইউজার প্রোফাইল পাওয়া যায়নি। দয়া করে প্রথমে সাইন আপ করুন বা এডমিনের সাথে যোগাযোগ করুন!` 
+        : `This Google account (${email}) is not registered in our database. Please Sign Up first or contact administration.`);
+    }
+
+    if (matchedAccount.status === 'Pending') {
+      throw new Error(language === 'bn' ? 'আপনার অ্যাকাউন্টটি এখন এডমিনের অনুমোদনের অপেক্ষায় রয়েছে।' : 'Your account is pending admin approval.');
+    }
+
+    if (matchedAccount.status === 'Suspended') {
+      throw new Error(language === 'bn' ? 'আপনার অ্যাকাউন্টটি এডমিন দ্বারা সাময়িকভাবে স্থগিত করা হয়েছে।' : 'Your account has been suspended by the admin.');
+    }
+
+    const session: UserSession = {
+      uid: matchedAccount.id,
+      name: matchedAccount.name,
+      email: matchedAccount.email,
+      role: matchedAccount.role,
+      flatNumber: matchedAccount.flatNumber,
+      phone: matchedAccount.phone,
+      nid: matchedAccount.nid
+    };
+
+    setCurrentUser(session);
+    localStorage.setItem('as_user', JSON.stringify(session));
+    logActivity('GOOGLE_SECURE_LOGIN', `Logged in successfully with verified Google account: ${email} (${matchedAccount.name}).`);
+    addNotification('Google Sign-In Successful', `Welcome back ${matchedAccount.name}! Successfully authenticated.`, 'General');
     return true;
   };
 
@@ -1417,6 +1476,7 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       updateUserPassword,
 
       login,
+      loginWithGoogle,
       logout,
       registerUser,
       updateProfile,

@@ -76,7 +76,7 @@ function getFloorName(floor: number, lang: string) {
 }
 
 export default function GoogleChat() {
-  const { language, config, updateConfig, currentUser, flats } = useSociety();
+  const { language, config, updateConfig, currentUser, flats, members, addMember, updateMember } = useSociety();
   const [needsAuth, setNeedsAuth] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -87,7 +87,18 @@ export default function GoogleChat() {
   const [isSimulated, setIsSimulated] = useState(false);
 
   // Tab Control
-  const [activeMainTab, setActiveMainTab] = useState<'chat' | 'committee'>('chat');
+  const [activeMainTab, setActiveMainTab] = useState<'chat' | 'committee' | 'photogallery'>('chat');
+
+  // Resident Photo Gallery State
+  const [gallerySearch, setGallerySearch] = useState('');
+  const [galleryFloorFilter, setGalleryFloorFilter] = useState<number | null>(null);
+  const [selectedGalleryFlat, setSelectedGalleryFlat] = useState<any | null>(null);
+  const [flatFormName, setFlatFormName] = useState('');
+  const [flatFormPhone, setFlatFormPhone] = useState('');
+  const [flatFormPhoto, setFlatFormPhoto] = useState('');
+  const [flatFormType, setFlatFormType] = useState<'Owner' | 'Tenant'>('Owner');
+  const [flatFormNid, setFlatFormNid] = useState('');
+  const [flatFormEmail, setFlatFormEmail] = useState('');
 
   // Committee State & Forms inside Google Chat
   const [showCommitteeModal, setShowCommitteeModal] = useState(false);
@@ -761,6 +772,19 @@ export default function GoogleChat() {
                 <Users className="h-4 w-4 text-[#D4AF37]" />
                 <span>{language === 'bn' ? 'পরিচালনা পর্ষদ গ্যালারী' : 'Committee Board Gallery'}</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveMainTab('photogallery')}
+                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer border ${
+                  activeMainTab === 'photogallery'
+                    ? 'bg-emerald-600 border-[#D4AF37]/35 text-white font-extrabold shadow-lg shadow-emerald-950/40'
+                    : 'bg-neutral-950 text-slate-300 border-emerald-950/65 hover:border-[#D4AF37]/30 hover:text-white'
+                }`}
+              >
+                <Camera className="h-4 w-4 text-rose-500 animate-pulse" />
+                <span>{language === 'bn' ? 'বাসিন্দা ফটোগ্যালারী (৭২ ফ্ল্যাট)' : 'Resident Photo Gallery (72 Flats)'}</span>
+              </button>
             </div>
 
             {/* Quick action for Admin inside top menu bar */}
@@ -1151,7 +1175,7 @@ export default function GoogleChat() {
               </div>
 
             </div>
-          ) : (
+          ) : activeMainTab === 'committee' ? (
             <div className="space-y-6">
               {/* Admin Panel / Menu Bar inside the gallery */}
               <div className="p-4 rounded-xl bg-neutral-950/45 border border-emerald-950/70 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -1383,6 +1407,249 @@ export default function GoogleChat() {
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6 animate-fadeIn pb-16">
+              {/* Header Info Block */}
+              <div className="p-5 rounded-2xl bg-gradient-to-r from-neutral-900 to-neutral-950 border border-[#D4AF37]/35 shadow-2xl relative overflow-hidden">
+                <div className="absolute right-0 top-0 w-64 h-64 bg-emerald-990/10 blur-3xl rounded-full -z-10"></div>
+                <div className="flex flex-col md:flex-row gap-5 justify-between items-start md:items-center">
+                  <div>
+                    <h2 className="text-[19px] font-black font-sans text-white tracking-tight flex items-center gap-2">
+                      <span className="inline-flex h-2 w-2 rounded-full bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.8)] animate-pulse" />
+                      {language === 'bn' ? 'আস্থা টুইন টাওয়ার্স - বাসিন্দা ফটোগ্যালারী (৭২ ফ্ল্যাট)' : 'Astha Twin Towers - Resident Photo Gallery (72 Units)'}
+                    </h2>
+                    <p className="text-slate-400 text-xs font-sans mt-1.5 leading-relaxed max-w-3xl">
+                      {language === 'bn' 
+                        ? 'আস্থা টুইন টাওয়ার্সের ৭২টি ফ্ল্যাটের সম্মানিত মালিক এবং বাসিন্দাদের ছবি ও যোগাযোগের ডিরেক্টরি। ফ্ল্যাট বক্সে ক্লিক করে ছবি ও তথ্য আপলোড করে প্রোফাইল সাজাতে পারবেন।' 
+                        : 'A rich visual showcase of the residents and flat owners across all 72 individual flat units. Click on any flat block below to edit/assign ownership details, contact info, or upload portrait photos.'}
+                    </p>
+                  </div>
+                  
+                  <div className="bg-emerald-950/40 border border-emerald-900/60 p-2.5 px-4 rounded-xl shrink-0 text-center">
+                    <span className="text-[10px] font-bold text-emerald-400 font-mono tracking-widest block uppercase">
+                      {language === 'bn' ? 'মোট আপলোডকৃত ছবি' : 'UPLOAD QUANTITY'}
+                    </span>
+                    <span className="text-xl font-mono font-black text-[#D4AF37]">
+                      {members ? members.filter((m: any) => m.photoUrl && m.photoUrl.trim() !== '').length : 0} / 72
+                    </span>
+                  </div>
+                </div>
+
+                {/* Filters Row */}
+                <div className="flex flex-col sm:flex-row gap-4 justify-between items-stretch sm:items-center mt-6 pt-5 border-t border-emerald-950/80">
+                  {/* Search Bar */}
+                  <div className="relative flex-1 max-w-md">
+                    <input 
+                      type="text" 
+                      value={gallerySearch}
+                      onChange={(e) => setGallerySearch(e.target.value)}
+                      placeholder={language === 'bn' ? 'ফ্ল্যাট নম্বর বা নাম দিয়ে খুঁজুন...' : 'Search by flat number or name...'}
+                      className="w-full bg-neutral-950 border border-emerald-950/70 p-2.5 pl-9 rounded-xl text-xs text-white placeholder-slate-500 focus:border-[#D4AF37]/50 focus:outline-none"
+                    />
+                    <span className="absolute left-3 top-3 text-slate-500">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    </span>
+                  </div>
+
+                  {/* Floor Quick Filters */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+                    <button
+                      type="button"
+                      onClick={() => setGalleryFloorFilter(null)}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer ${
+                        galleryFloorFilter === null 
+                          ? 'bg-[#D4AF37] text-neutral-950 border-[#D4AF37]' 
+                          : 'bg-neutral-900 text-slate-400 border-emerald-950 hover:text-white'
+                      }`}
+                    >
+                      {language === 'bn' ? 'সব ফ্লোর' : 'All Floors'}
+                    </button>
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(floorNum => (
+                      <button
+                        key={floorNum}
+                        type="button"
+                        onClick={() => setGalleryFloorFilter(floorNum)}
+                        className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black font-mono transition-all cursor-pointer border ${
+                          galleryFloorFilter === floorNum 
+                            ? 'bg-emerald-600 border-[#D4AF37]/40 text-white' 
+                            : 'bg-neutral-900 text-slate-400 border-emerald-950 hover:text-white'
+                        }`}
+                      >
+                        {floorNum} {language === 'bn' ? 'তলা' : 'F'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid with exactly 72 custom styled boxes */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {(() => {
+                  const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+                  const renderedSlots: any[] = [];
+
+                  for (let floor = 1; floor <= 9; floor++) {
+                    for (let j = 0; j < 8; j++) {
+                      const letter = letters[j];
+                      const flatNum = `${floor}${letter}`;
+                      
+                      // Find flat details
+                      const flatSpec = flats ? (flats.find((f: any) => f.number === flatNum) || {
+                        number: flatNum,
+                        floor: floor,
+                        squareFeet: j === 0 || j === 1 ? 1800 : j === 2 || j === 3 ? 1550 : j === 4 || j === 5 ? 1450 : 1200,
+                        status: 'vacant',
+                        ownerName: 'Unassigned',
+                        renterName: '',
+                        phone: ''
+                      }) : {
+                        number: flatNum,
+                        floor: floor,
+                        squareFeet: j === 0 || j === 1 ? 1800 : j === 2 || j === 3 ? 1550 : j === 4 || j === 5 ? 1450 : 1200,
+                        status: 'vacant',
+                        ownerName: 'Unassigned',
+                        renterName: '',
+                        phone: ''
+                      };
+
+                      // Get any active registered member of this flat, priority to Owner
+                      const flatMembers = members ? members.filter((m: any) => m.flatNumber === flatNum && m.status === 'Active') : [];
+                      const flatOwner = flatMembers.find((m: any) => m.type === 'Owner') || flatMembers[0];
+
+                      // Apply filters
+                      if (galleryFloorFilter !== null && floor !== galleryFloorFilter) {
+                        continue;
+                      }
+
+                      if (gallerySearch.trim() !== '') {
+                        const searchLower = gallerySearch.toLowerCase();
+                        const matchesFlat = flatNum.toLowerCase().includes(searchLower);
+                        const matchesOwner = flatSpec.ownerName && flatSpec.ownerName.toLowerCase().includes(searchLower);
+                        const matchesRenter = flatSpec.renterName && flatSpec.renterName.toLowerCase().includes(searchLower);
+                        const matchesMember = flatOwner && flatOwner.name.toLowerCase().includes(searchLower);
+                        if (!matchesFlat && !matchesOwner && !matchesRenter && !matchesMember) {
+                          continue;
+                        }
+                      }
+
+                      renderedSlots.push({ flatNum, flatSpec, flatOwner });
+                    }
+                  }
+
+                  if (renderedSlots.length === 0) {
+                    return (
+                      <div className="col-span-full py-20 text-center text-xs text-slate-500 font-mono border border-dashed border-emerald-950 rounded-2xl">
+                        {language === 'bn' ? 'কোনো মেলানো ফ্ল্যাট পাওয়া যায়নি!' : 'No matching flats found.'}
+                      </div>
+                    );
+                  }
+
+                  return renderedSlots.map(({ flatNum, flatSpec, flatOwner }) => {
+                    const hasPhoto = flatOwner && flatOwner.photoUrl && flatOwner.photoUrl.trim() !== '';
+                    const photo = hasPhoto ? flatOwner.photoUrl : null;
+                    const residentName = flatOwner 
+                      ? flatOwner.name 
+                      : (flatSpec.ownerName !== 'Unassigned' ? flatSpec.ownerName : (language === 'bn' ? 'খালি / বরাদ্দ নেই' : 'Unassigned'));
+                    
+                    const isOccupied = flatSpec.status !== 'vacant' || flatOwner;
+                    const typeBadge = flatOwner 
+                      ? (flatOwner.type === 'Owner' ? (language === 'bn' ? 'মালিক' : 'Owner') : (language === 'bn' ? 'ভাড়াটিয়া' : 'Tenant'))
+                      : (flatSpec.status === 'occupied_owner' ? (language === 'bn' ? 'মালিক' : 'Owner') : flatSpec.status === 'occupied_tenant' ? (language === 'bn' ? 'ভাড়াটিয়া' : 'Tenant') : null);
+
+                    return (
+                      <div 
+                        key={flatNum}
+                        onClick={() => {
+                          const existing = flatOwner || (members && members.find((m: any) => m.flatNumber === flatNum));
+                          setSelectedGalleryFlat({ flatNum, flatSpec, member: existing });
+                          setFlatFormName(existing ? existing.name : (flatSpec.ownerName !== 'Unassigned' ? flatSpec.ownerName : ''));
+                          setFlatFormPhone(existing ? existing.phone : flatSpec.phone || '');
+                          setFlatFormPhoto(existing ? (existing.photoUrl || '') : '');
+                          setFlatFormType(existing ? existing.type : 'Owner');
+                          setFlatFormNid(existing ? (existing.nid || '') : '');
+                          setFlatFormEmail(existing ? (existing.email || '') : '');
+                        }}
+                        className="rounded-2xl border border-emerald-950/80 bg-neutral-950/45 overflow-hidden flex flex-col justify-between group hover:border-[#D4AF37] hover:shadow-xl hover:shadow-black/75 hover:bg-neutral-900/60 transition-all duration-300 relative cursor-pointer"
+                      >
+                        {/* Elegant Corner Flat Number Label */}
+                        <div className="absolute top-2.5 left-2.5 z-10">
+                          <span className="rounded bg-neutral-950 text-[#D4AF37] border border-emerald-900/60 px-2 py-0.5 text-[10px] font-mono font-black shadow-md tracking-wider">
+                            {flatNum}
+                          </span>
+                        </div>
+
+                        {typeBadge && (
+                          <div className="absolute top-2.5 right-2.5 z-10">
+                            <span className={`rounded px-1.5 py-0.5 text-[8.5px] font-black shadow-md uppercase tracking-wide border ${
+                              typeBadge === 'Owner' || typeBadge === 'মালিক'
+                                ? 'bg-amber-950/90 text-[#D4AF37] border-[#D4AF37]/35'
+                                : 'bg-[#032e2c]/90 text-emerald-300 border-emerald-900/40'
+                            }`}>
+                              {typeBadge}
+                            </span>
+                          </div>
+                        )}
+
+                        <div>
+                          {/* Image Box */}
+                          <div className="relative aspect-square w-full bg-slate-950/80 border-b border-emerald-950/60 overflow-hidden flex items-center justify-center">
+                            {photo ? (
+                              <img 
+                                src={photo} 
+                                alt={residentName}
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop`;
+                                }}
+                              />
+                            ) : (
+                              <div className="flex flex-col items-center justify-center p-4 text-center space-y-2">
+                                <div className="h-11 w-11 rounded-full bg-emerald-950/30 border border-emerald-900/40 flex items-center justify-center text-[#D4AF37]/75">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                </div>
+                                <span className="text-[8px] font-mono tracking-widest uppercase text-slate-500 group-hover:text-[#D4AF37] transition-all">
+                                  {language === 'bn' ? 'ছবি নেই' : 'NO PROFILE'}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Camera Hover Trigger Overlay */}
+                            <div className="absolute inset-0 z-20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-neutral-950/80 backdrop-blur-[2px]">
+                              <span className="text-[10px] font-bold text-white font-sans border border-[#D4AF37]/50 rounded-xl bg-[#D4AF37]/10 px-3 py-1.5 flex items-center gap-1.5">
+                                <Camera className="h-3.5 w-3.5 text-[#D4AF37]" />
+                                {language === 'bn' ? 'যোগাযোগ ও ছবি' : 'DETAILS & PHOTO'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Details Wrapper */}
+                          <div className="p-3.5 text-left space-y-1">
+                            <div className="text-[12px] font-extrabold text-white truncate max-w-full group-hover:text-[#D4AF37] transition-colors leading-tight" title={residentName}>
+                              {residentName}
+                            </div>
+                            <div className="text-[9.5px] text-slate-400 font-sans flex items-center justify-between">
+                              <span>
+                                {language === 'bn' ? `${flatSpec.floor} তলা` : `Floor ${flatSpec.floor}`}
+                              </span>
+                              <span className="font-mono text-slate-500">
+                                {flatSpec.squareFeet} sft
+                              </span>
+                            </div>
+                            
+                            {isOccupied && (
+                              <div className="text-[9px] font-mono text-emerald-400 font-semibold truncate pt-0.5">
+                                {flatOwner?.phone || flatSpec.phone || (language === 'bn' ? 'যোগাযোগ নম্বর নেই' : 'No Phone')}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             </div>
           )}
@@ -1743,6 +2010,257 @@ export default function GoogleChat() {
                 {language === 'bn' ? 'সংরক্ষণ' : 'Save'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 72 Flat Profile Detail & Photo Upload Drawer/Modal */}
+      {selectedGalleryFlat && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+          <div className="w-full max-w-xl rounded-2xl border border-[#D4AF37]/35 bg-neutral-950 p-6 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl shadow-black text-left">
+            <div className="flex items-center justify-between border-b border-emerald-950 pb-3">
+              <h3 className="text-[16px] font-black tracking-tight text-white flex items-center gap-2">
+                <span className="h-6.5 w-12 bg-neutral-900 border border-[#D4AF37]/45 text-[#D4AF37] px-2 py-0.5 rounded text-xs font-mono font-black flex items-center justify-center">
+                  #{selectedGalleryFlat.flatNum}
+                </span>
+                <span className="text-white hover:text-[#D4AF37] transition-all">
+                  {language === 'bn' ? 'ফ্ল্যাট মালিক ও আবাসিক প্রোফাইল আপডেট' : 'Flat Owner & Resident Entry Control'}
+                </span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setSelectedGalleryFlat(null)}
+                className="rounded p-1 text-slate-400 hover:bg-rose-950 hover:text-white transition-all cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!selectedGalleryFlat) return;
+
+                const { flatNum, flatSpec, member } = selectedGalleryFlat;
+
+                if (member) {
+                  // Update existing member record
+                  const updatedRecord = {
+                    ...member,
+                    name: flatFormName.trim(),
+                    phone: flatFormPhone.trim(),
+                    photoUrl: flatFormPhoto.trim(),
+                    type: flatFormType,
+                    nid: flatFormNid.trim(),
+                    email: flatFormEmail.trim()
+                  };
+                  updateMember(updatedRecord);
+                } else {
+                  // Add new member record to database
+                  const newRecord = {
+                    name: flatFormName.trim(),
+                    flatNumber: flatNum,
+                    type: flatFormType,
+                    phone: flatFormPhone.trim(),
+                    nid: flatFormNid.trim(),
+                    email: flatFormEmail.trim() || `${flatNum.toLowerCase()}@asthatwintowers.com`,
+                    familyMembers: [],
+                    status: 'Active' as const,
+                    photoUrl: flatFormPhoto.trim()
+                  };
+                  addMember(newRecord);
+                }
+
+                setSelectedGalleryFlat(null);
+              }}
+              className="space-y-4 text-xs font-sans"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Resident Full Name */}
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-400 font-mono block">
+                    {language === 'bn' ? 'বাসিন্দার সম্পূর্ণ নাম' : 'Full Resident Name'} <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={flatFormName}
+                    onChange={(e) => setFlatFormName(e.target.value)}
+                    placeholder={language === 'bn' ? 'যেমন: মোঃ আতিকুর রহমান' : 'e.g. Atiqur Rahman'}
+                    className="block w-full rounded border border-emerald-950 bg-neutral-900 px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none font-sans"
+                  />
+                </div>
+
+                {/* Mobile Phone Number */}
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-400 font-mono block">
+                    {language === 'bn' ? 'মোবাইল নাম্বার' : 'Contact Phone'} <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={flatFormPhone}
+                    onChange={(e) => setFlatFormPhone(e.target.value)}
+                    placeholder="+8801---------"
+                    className="block w-full rounded border border-emerald-950 bg-neutral-900 px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none font-sans font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Resident Type */}
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-400 font-mono block">
+                    {language === 'bn' ? 'বাসিন্দার ধরণ' : 'Resident Type'}
+                  </label>
+                  <select
+                    value={flatFormType}
+                    onChange={(e) => setFlatFormType(e.target.value as 'Owner' | 'Tenant')}
+                    className="block w-full rounded border border-emerald-950 bg-neutral-900 px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none font-sans"
+                  >
+                    <option value="Owner">{language === 'bn' ? 'ফ্ল্যাট মালিক (Owner)' : 'Flat Owner'}</option>
+                    <option value="Tenant">{language === 'bn' ? 'ভাড়াটিয়া (Tenant)' : 'Registered Tenant'}</option>
+                  </select>
+                </div>
+
+                {/* Email address */}
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-400 font-mono block">
+                    {language === 'bn' ? 'ইমেইল অ্যাড্রেস' : 'Email Address'}
+                  </label>
+                  <input
+                    type="email"
+                    value={flatFormEmail}
+                    onChange={(e) => setFlatFormEmail(e.target.value)}
+                    placeholder="resident@example.com"
+                    className="block w-full rounded border border-emerald-950 bg-neutral-900 px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none font-sans"
+                  />
+                </div>
+              </div>
+
+              {/* National Identity Card NID */}
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-bold text-slate-400 font-mono block">
+                  {language === 'bn' ? 'জাতীয় পরিচয়পত্র নম্বর (NID)' : 'National ID Card (NID)'}
+                </label>
+                <input
+                  type="text"
+                  value={flatFormNid}
+                  onChange={(e) => setFlatFormNid(e.target.value)}
+                  placeholder="e.g. 199XXXXXXXXXXXX"
+                  className="block w-full rounded border border-emerald-950 bg-neutral-900 px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none font-mono"
+                />
+              </div>
+
+              {/* Photos Panel */}
+              <div className="space-y-3 pt-2">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-[#D4AF37] font-mono block mb-1.5">
+                    {language === 'bn' ? 'ছবি ও প্রতিকৃতির ইউআরএল (Photo URL)' : 'Passport Portrait Image URL'}
+                  </label>
+                  <input
+                    type="url"
+                    value={flatFormPhoto}
+                    onChange={(e) => setFlatFormPhoto(e.target.value)}
+                    placeholder="https://images.unsplash.com/photo-..."
+                    className="block w-full rounded border border-emerald-950 bg-neutral-900 px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none font-sans"
+                  />
+                </div>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-emerald-950/50"></div>
+                  </div>
+                  <div className="relative flex justify-center text-xs">
+                    <span className="bg-neutral-950 px-2 text-slate-500 font-mono text-[9px] uppercase tracking-wider">
+                      {language === 'bn' ? 'অথবা' : 'OR'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Upload Local Image */}
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-emerald-400 font-mono block mb-1.5">
+                    {language === 'bn' ? 'ডিভাইসের মেমোরি থেকে আপলোড করুন' : 'Upload Image File'}
+                  </label>
+                  <label className="flex items-center justify-center w-full min-h-[38px] px-3 py-2 border border-dashed border-emerald-800 rounded bg-neutral-900/50 hover:bg-neutral-900 cursor-pointer transition-colors group">
+                    <div className="flex items-center gap-2 text-xs text-emerald-500 font-bold group-hover:text-[#D4AF37]">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                      {language === 'bn' ? 'ছবি নির্বাচন করতে ক্লিক করুন' : 'Click to Select & Crop Pic'}
+                    </div>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      className="hidden" 
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setFlatFormPhoto(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-emerald-950/50"></div>
+                  </div>
+                  <div className="relative flex justify-center text-xs">
+                    <span className="bg-neutral-950 px-2 text-slate-500 font-mono text-[9px] uppercase tracking-wider">
+                      {language === 'bn' ? 'অথবা সিস্টেমের ডেমো ছবি দিন' : 'OR CHOOSE PRESETS'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Preset Avatars Grid */}
+                <div className="grid grid-cols-7 gap-2">
+                  {[
+                     { name: 'Male A', url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face' },
+                     { name: 'Male B', url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&crop=face' },
+                     { name: 'Male C', url: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=200&h=200&fit=crop&crop=face' },
+                     { name: 'Male D', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face' },
+                     { name: 'Female E', url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face' },
+                     { name: 'Female F', url: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face' },
+                     { name: 'Female G', url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop&crop=face' }
+                  ].map((presetPic, pIdx) => (
+                    <button
+                      key={pIdx}
+                      type="button"
+                      onClick={() => setFlatFormPhoto(presetPic.url)}
+                      className={`h-10 w-10 mx-auto rounded-full border-2 transition-all cursor-pointer ${
+                        flatFormPhoto === presetPic.url 
+                          ? 'border-[#D4AF37] ring-2 ring-[#D4AF37]/50' 
+                          : 'border-transparent hover:border-emerald-500 hover:scale-110'
+                      }`}
+                      style={{ backgroundImage: `url(${presetPic.url})`, backgroundSize: 'cover' }}
+                      title={presetPic.name}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-2 border-t border-emerald-950 pt-4 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setSelectedGalleryFlat(null)}
+                  className="rounded border border-emerald-950 bg-transparent px-4 py-2 text-xs font-bold text-slate-300 hover:bg-neutral-900 cursor-pointer"
+                >
+                  {language === 'bn' ? 'বাতিল' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  className="rounded bg-emerald-600 border border-[#D4AF37]/35 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-500 cursor-pointer shadow-md"
+                >
+                  {language === 'bn' ? 'সংরক্ষণ ও আপডেট' : 'Save & Sync Details'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

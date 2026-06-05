@@ -82,10 +82,11 @@ export interface Notice {
   id: string;
   title: string;
   content: string;
-  type: 'Emergency' | 'Announcement' | 'Event' | 'Alert';
+  type: 'Emergency' | 'Announcement' | 'Event' | 'Alert' | 'Meeting';
   date: string;
   expiryDate?: string;
   active: boolean;
+  image?: string;
 }
 
 export interface Visitor {

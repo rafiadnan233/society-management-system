@@ -1,9 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Space Grotesk", sans-serif;
+  --font-sans: "Hind Siliguri", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", "Hind Siliguri", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
@@ -29,7 +29,10 @@
 
 body {
   background-color: #f8fafc;
-  color: #1e293b; /* slate-800 */
+  color: #090d16; /* darkest slate-950 for absolute high contrast */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 /* Scrollbars styling for High Density */
@@ -55,6 +58,9 @@ main .bg-black,
 main .bg-stone-950,
 main .bg-stone-900,
 main .bg-slate-950,
+main .bg-slate-900,
+main .bg-slate-800,
+main .bg-slate-700,
 main .bg-zinc-950,
 main .bg-zinc-900,
 main .bg-emerald-950\/10,
@@ -69,6 +75,8 @@ main .bg-neutral-900\/40,
 main .bg-neutral-900\/10,
 main [class*="bg-neutral-950"],
 main [class*="bg-neutral-900"],
+main [class*="bg-slate-800"],
+main [class*="bg-slate-900"],
 main [class*="bg-emerald-950/20"],
 main [class*="bg-emerald-950/45"] {
   background-color: #ffffff !important;
@@ -88,21 +96,24 @@ main .border-\[\#D4AF37\]\/10 {
   border-color: rgba(226, 232, 240, 0.9) !important;
 }
 
-/* Text overrides in main panel */
+/* Text overrides in main panel for maximum crisp visibility and high contrast */
 main .text-white {
-  color: #0f172a !important; /* text-slate-900 */
+  color: #020617 !important; /* text-slate-950 for pure dark bold headers */
 }
 main .text-slate-100 {
-  color: #1e293b !important; /* text-slate-800 */
+  color: #0f172a !important; /* text-slate-900 */
 }
 main .text-slate-200 {
-  color: #334155 !important; /* text-slate-700 */
+  color: #1e293b !important; /* text-slate-800 */
 }
 main .text-slate-300 {
-  color: #475569 !important; /* text-slate-600 */
+  color: #334155 !important; /* text-slate-700 */
 }
 main .text-slate-400 {
-  color: #64748b !important; /* text-slate-500 */
+  color: #475569 !important; /* text-slate-600 */
+}
+main .text-slate-500 {
+  color: #475569 !important; /* text-slate-600 */
 }
 
 /* Map specific golden text class elements in light mode under high density to vivid dark amber, looking outstanding */
@@ -118,19 +129,24 @@ main table {
   background-color: #ffffff !important;
 }
 main thead {
-  background-color: #f8fafc !important;
+  background-color: #f1f5f9 !important;
 }
 main thead th {
-  color: #64748b !important;
+  color: #0f172a !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.05em !important;
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  border-bottom: 2px solid #cbd5e1 !important;
 }
 main tbody tr {
-  border-bottom-color: #f1f5f9 !important;
+  border-bottom-color: #e2e8f0 !important;
 }
 main tbody tr:hover {
-  background-color: #f8fafc !important;
+  background-color: #f1f5f9/60 !important;
 }
 
-/* Forms inside main workspace should be light and high density */
+/* Forms inside main workspace should be light, high density, and ultra legible */
 main input[type="text"],
 main input[type="number"],
 main input[type="email"],
@@ -138,9 +154,21 @@ main input[type="password"],
 main input[type="date"],
 main select,
 main textarea {
-  background-color: #f1f5f9 !important;
-  border-color: #cbd5e1 !important;
-  color: #0f172a !important;
+  background-color: #ffffff !important;
+  border-color: #334155 !important;
+  border-width: 1.5px !important;
+  color: #090d16 !important;
+  font-weight: 500 !important;
+}
+main input[type="text"]:focus,
+main input[type="number"]:focus,
+main input[type="email"]:focus,
+main input[type="password"]:focus,
+main input[type="date"]:focus,
+main select:focus,
+main textarea:focus {
+  border-color: #059669 !important;
+  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.1) !important;
 }
 main input::placeholder,
 main textarea::placeholder {
