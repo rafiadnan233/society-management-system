@@ -22,7 +22,6 @@ import {
   User,
   LogOut,
   X,
-  Languages,
   HardHat,
   MessageSquare,
   Phone
@@ -51,7 +50,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     { id: 'staff', label: t.staff, icon: ShieldAlert, roles: ['Admin'] },
     { id: 'reports', label: t.reports, icon: BarChart3, roles: ['Admin'] },
     { id: 'backup', label: t.backup, icon: Database, roles: ['Admin'] },
-    { id: 'settings', label: t.settings, icon: Settings, roles: ['Admin'] },
   ];
 
   const filteredItems = menuItems.filter(item => {
@@ -154,58 +152,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           })}
         </nav>
 
-        {/* Quick Language Toggle & Logout Footer */}
-        <div className="border-t border-emerald-800 px-3 py-4 space-y-2 mt-auto">
-          {/* Lang Selector */}
-          <div className="flex items-center justify-between rounded-lg bg-[#043327] border border-emerald-800 px-3 py-2 text-xs text-emerald-200">
-            <span className="flex items-center gap-1.5 font-mono text-[10px]">
-              <Languages className="h-3.5 w-3.5 text-amber-400" />
-              {language === 'bn' ? 'ভাষা: বাংলা' : 'LANG: ENG'}
-            </span>
-            <div className="flex gap-1.5">
-              <button 
-                type="button"
-                onClick={() => setLanguage('en')}
-                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${language === 'en' ? 'bg-amber-500 text-white' : 'hover:text-white'}`}
-              >
-                EN
-              </button>
-              <button 
-                type="button"
-                onClick={() => setLanguage('bn')}
-                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${language === 'bn' ? 'bg-amber-500 text-white' : 'hover:text-white'}`}
-              >
-                বাংলা
-              </button>
-            </div>
-          </div>
 
-          {/* Quick Profile Tab trigger */}
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('profile');
-              onClose();
-            }}
-            className={`
-              group flex w-full items-center gap-3 rounded-lg px-4 py-2 text-xs font-medium transition-colors cursor-pointer
-              ${activeTab === 'profile' ? 'bg-[#043327] text-white border-l-4 border-amber-400' : 'text-emerald-200/75 hover:text-white'}
-            `}
-          >
-            <User className="h-4.5 w-4.5 text-amber-300" />
-            <span>{t.profile}</span>
-          </button>
-
-          {/* Logout Trigger */}
-          <button
-            type="button"
-            onClick={logout}
-            className="flex w-full items-center gap-3 rounded-lg px-4 py-2 text-xs font-medium text-amber-400 hover:bg-amber-400/10 hover:text-white transition-all cursor-pointer"
-          >
-            <LogOut className="h-4.5 w-4.5 text-amber-400" />
-            <span>{t.logout}</span>
-          </button>
-        </div>
       </aside>
     </>
   );

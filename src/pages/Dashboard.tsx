@@ -57,9 +57,7 @@ export default function Dashboard() {
   const maintenanceDueCount = flats.filter(f => f.maintenanceStatus === 'Due' || f.maintenanceStatus === 'Overdue').length;
 
   // Financial aggregates
-  const rawTotalCollection = payments
-    .filter(p => p.status === 'Paid' || p.status === 'Partial')
-    .reduce((sum, p) => sum + p.paidAmount, 0);
+  const rawTotalCollection = 0;
 
   const rawTotalExpense = expenses
     .reduce((sum, e) => sum + e.amount, 0);
@@ -135,7 +133,7 @@ export default function Dashboard() {
         <div className="rounded-xl border border-indigo-500/30 bg-gradient-to-br from-indigo-900/60 to-indigo-950 p-4 relative overflow-hidden group hover:border-indigo-400/50 shadow-lg transition-all">
           <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-indigo-500/10 blur-xl group-hover:bg-indigo-400/20 transition-all"></div>
           <div className="flex items-center justify-between relative z-10">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 font-mono">
+            <span className="text-[18px] font-bold text-indigo-300 font-sans">
               {t.stats_members}
             </span>
             <div className="rounded-md p-1.5 bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
@@ -154,7 +152,7 @@ export default function Dashboard() {
         <div className="rounded-xl border border-cyan-500/30 bg-gradient-to-br from-cyan-900/60 to-cyan-950 p-4 relative overflow-hidden group hover:border-cyan-400/50 shadow-lg transition-all">
           <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-cyan-500/10 blur-xl group-hover:bg-cyan-400/20 transition-all"></div>
           <div className="flex items-center justify-between relative z-10">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 font-mono">
+            <span className="text-[18px] font-bold text-cyan-300 font-sans">
               {t.stats_flats}
             </span>
             <div className="rounded-md p-1.5 bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
@@ -173,7 +171,7 @@ export default function Dashboard() {
         <div className="rounded-xl border border-emerald-500/30 bg-gradient-to-br from-emerald-900/60 to-emerald-950 p-4 relative overflow-hidden group hover:border-emerald-400/50 shadow-lg transition-all col-span-2 lg:col-span-1">
           <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-emerald-500/10 blur-xl group-hover:bg-emerald-400/20 transition-all"></div>
           <div className="flex items-center justify-between relative z-10">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 font-mono">
+            <span className="text-[18px] font-bold text-emerald-300 font-sans">
               {t.stats_collections}
             </span>
             <div className="rounded-md p-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
@@ -189,7 +187,7 @@ export default function Dashboard() {
         <div className="rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-900/60 to-amber-950 p-4 relative overflow-hidden group hover:border-amber-400/50 shadow-lg transition-all">
           <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-amber-500/10 blur-xl group-hover:bg-amber-400/20 transition-all"></div>
           <div className="flex items-center justify-between relative z-10">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 font-mono">
+            <span className="text-[18px] font-bold text-amber-300 font-sans">
               {t.stats_expenses}
             </span>
             <div className="rounded-md p-1.5 bg-amber-500/20 text-amber-300 border border-amber-400/30">
@@ -208,7 +206,7 @@ export default function Dashboard() {
         <div className="rounded-xl border border-rose-500/30 bg-gradient-to-br from-rose-900/60 to-rose-950 p-4 relative overflow-hidden group hover:border-rose-400/50 shadow-lg transition-all">
           <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-rose-500/10 blur-xl group-hover:bg-rose-400/20 transition-all"></div>
           <div className="flex items-center justify-between relative z-10">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-300 font-mono">
+            <span className="text-[18px] font-bold text-rose-300 font-sans">
               {t.stats_dues}
             </span>
             <div className="rounded-md p-1.5 bg-rose-500/20 text-rose-300 border border-rose-400/30">

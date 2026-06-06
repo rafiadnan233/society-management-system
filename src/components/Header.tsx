@@ -19,7 +19,10 @@ import {
   Check,
   Trash2,
   Printer,
-  Megaphone
+  Megaphone,
+  Settings,
+  LogOut,
+  ChevronDown
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -39,7 +42,8 @@ export default function Header({ onMenuToggle }: HeaderProps) {
     members,
     complaints,
     setActiveTab,
-    notices
+    notices,
+    logout
   } = useSociety();
 
   const t = translations[language];
@@ -47,9 +51,11 @@ export default function Header({ onMenuToggle }: HeaderProps) {
   const [showNotif, setShowNotif] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   
   const notifRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Close drawers when clicking outside
   useEffect(() => {
@@ -59,6 +65,9 @@ export default function Header({ onMenuToggle }: HeaderProps) {
       }
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setShowSearchResults(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -355,19 +364,70 @@ export default function Header({ onMenuToggle }: HeaderProps) {
             )}
           </div>
           
-          {/* User Profile Info Badge (Mobile + Desktop fallback icon helper) */}
-          <button 
-            type="button"
-            onClick={() => setActiveTab('profile')}
-            className="flex items-center gap-1.5 border border-slate-200 rounded-full px-2 py-1 bg-slate-50 hover:border-emerald-500 transition-all cursor-pointer"
-          >
-            <div className="h-6 w-6 rounded-full bg-emerald-700 border border-emerald-600 text-[11px] font-bold text-white flex items-center justify-center">
-              {currentUser?.name.charAt(0) || 'U'}
-            </div>
-            <span className="text-[10px] font-bold text-emerald-700 tracking-wider hidden sm:inline uppercase">
-              {currentUser?.role === 'Admin' ? 'ADMIN' : 'MEMBER'}
-            </span>
-          </button>
+          {/* User Profile Info Dropdown Option */}
+          <div ref={userMenuRef} className="relative">
+            <button 
+              type="button"
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="flex items-center gap-1.5 border border-slate-200 rounded-full px-2.5 py-1 bg-slate-50 hover:border-emerald-500 transition-all cursor-pointer"
+            >
+              <div className="h-6 w-6 rounded-full bg-emerald-700 border border-emerald-600 text-[11px] font-bold text-white flex items-center justify-center">
+                {currentUser?.name.charAt(0) || 'U'}
+              </div>
+              <span className="text-[10px] font-bold text-emerald-700 tracking-wider hidden sm:inline uppercase">
+                {currentUser?.role === 'Admin' ? 'ADMIN' : 'MEMBER'}
+              </span>
+              <ChevronDown className={`h-3 w-3 text-slate-500 transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showUserMenu && (
+              <div className="absolute right-0 mt-2 w-48 rounded-lg border border-slate-200 bg-white shadow-xl z-50 py-1 font-sans">
+                {/* My Profile */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('profile');
+                    setShowUserMenu(false);
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-750 transition-colors text-left"
+                >
+                  <User className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>{t.profile}</span>
+                </button>
+
+                {/* Society Settings (Admin only) */}
+                {currentUser?.role === 'Admin' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('settings');
+                      setShowUserMenu(false);
+                    }}
+                    className="flex w-full items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-750 transition-colors text-left"
+                  >
+                    <Settings className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <span>{t.settings}</span>
+                  </button>
+                )}
+
+                {/* Divider */}
+                <div className="border-t border-slate-100 my-1" />
+
+                {/* Logout */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    logout();
+                    setShowUserMenu(false);
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors text-left"
+                >
+                  <LogOut className="h-4 w-4 text-rose-500 shrink-0" />
+                  <span>{t.logout}</span>
+                </button>
+              </div>
+            )}
+          </div>
 
         </div>
       </div>

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { db } from '../utils/firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import {
@@ -81,6 +81,7 @@ interface SocietyContextType {
   markPaymentPaid: (paymentId: string, method: Payment['payMethod'], txnId: string, amountPaid: number) => void;
   generateMonthlyFees: (month: string) => void;
   triggerPaymentReminder: (paymentId: string) => void;
+  deletePayment: (id: string) => void;
 
   // Expenses
   addExpense: (expense: Omit<Expense, 'id'>) => void;
@@ -932,28 +933,95 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const deleteMember = (id: string) => {
-    const match = members.find(m => m.id === id);
+    const match = members.find(m => String(m.id) === String(id));
     if (!match) return;
 
-    const updated = members.filter(m => m.id !== id);
-    setMembers(updated);
-    saveToStorage('members', updated);
+    const updatedMembers = members.filter(m => String(m.id) !== String(id));
+    setMembers(updatedMembers);
+    saveToStorage('members', updatedMembers);
 
-    // Sync Flat occupancy status to vacant or reset name
+    // 1. Sync Flat occupancy status to vacant, or keep it updated based on any remaining resident in the flat
+    const otherMembersOfFlat = updatedMembers.filter(m => m.flatNumber === match.flatNumber);
+    const remainingOwner = otherMembersOfFlat.find(m => m.type === 'Owner');
+    const remainingTenant = otherMembersOfFlat.find(m => m.type === 'Tenant');
+
     const uFlats = flats.map(f => {
       if (f.number === match.flatNumber) {
-        if (match.type === 'Tenant') {
-          return { ...f, status: 'vacant' as const, renterName: '' };
-        } else {
-          return { ...f, ownerName: 'Unassigned', status: 'vacant' as const };
-        }
+        return {
+          ...f,
+          ownerName: remainingOwner ? remainingOwner.name : 'Unassigned',
+          renterName: remainingTenant ? remainingTenant.name : '',
+          phone: remainingTenant ? remainingTenant.phone : (remainingOwner ? remainingOwner.phone : ''),
+          status: remainingTenant 
+            ? ('occupied_tenant' as const) 
+            : (remainingOwner ? ('occupied_owner' as const) : ('vacant' as const))
+        };
       }
       return f;
     });
     setFlats(uFlats);
     saveToStorage('flats', uFlats);
 
-    logActivity('MEMBER_DELETE', `Deleted Member ${match.name} of flat ${match.flatNumber}.`);
+    // 2. Cascade delete from Payments (Fuzzy and robust matching)
+    const updatedPayments = payments.filter(p => {
+      const pName = p.memberName ? p.memberName.toLowerCase().trim() : '';
+      const mName = match.name ? match.name.toLowerCase().trim() : '';
+      const isNameMatch = pName === mName || pName.includes(mName) || mName.includes(pName);
+      const isFlatMatch = p.flatNumber === match.flatNumber;
+      return !(isNameMatch || (isFlatMatch && pName === ''));
+    });
+    setPayments(updatedPayments);
+    saveToStorage('payments', updatedPayments);
+
+    // 3. Cascade delete from Complaints
+    const updatedComplaints = complaints.filter(c => 
+      !(c.flatNumber === match.flatNumber && c.phone === match.phone)
+    );
+    setComplaints(updatedComplaints);
+    saveToStorage('complaints', updatedComplaints);
+
+    // 4. Cascade delete from Visitors
+    const updatedVisitors = visitors.filter(v => v.flatNumber !== match.flatNumber);
+    setVisitors(updatedVisitors);
+    saveToStorage('visitors', updatedVisitors);
+
+    // 5. Cascade delete matching User accounts (except admins)
+    const updatedAccounts = userAccounts.filter(u => {
+      if (u.role === 'Admin') return true;
+      return !(u.flatNumber === match.flatNumber || u.email === match.email);
+    });
+    setUserAccounts(updatedAccounts);
+    saveToStorage('user_accounts', updatedAccounts);
+
+    // 6. Cascade delete from Construction Phase Deposits
+    const updatedPhases = constructionPhases.map(p => {
+      const filteredDeposits = p.deposits.filter(d => 
+        !(d.flatNumber === match.flatNumber && d.memberName === match.name)
+      );
+      return { ...p, deposits: filteredDeposits };
+    });
+    setConstructionPhases(updatedPhases);
+    saveToStorage('constructionPhases', updatedPhases);
+
+    // 7. Cascade delete from Elected Committee Lists
+    if (config?.committeeMembersJson) {
+      try {
+        const committeeList = JSON.parse(config.committeeMembersJson);
+        if (Array.isArray(committeeList)) {
+          const cleanedCommittee = committeeList.filter((item: any) => 
+            !(item.flatNumber === match.flatNumber || item.email === match.email || item.phone === match.phone)
+          );
+          const updatedConfig = { ...config, committeeMembersJson: JSON.stringify(cleanedCommittee) };
+          setConfig(updatedConfig);
+          saveToStorage('config', updatedConfig);
+        }
+      } catch (e) {
+        console.error("Failed to clean committee members", e);
+      }
+    }
+
+    logActivity('MEMBER_DELETE', `Deleted Member ${match.name} of flat ${match.flatNumber} and cascaded cleanup to related entities.`);
+    addNotification('Resident Deleted', `${match.name} of flat ${match.flatNumber} has been removed. All related bills, complaints, and logins have been cleaned up automatically.`, 'General');
   };
 
   // Flat Action
@@ -1077,6 +1145,18 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       logActivity('REMINDER_TRIGGER', `Dispatched SMS reminder alert to flat ${matchPay.flatNumber} owner.`);
       addNotification('Direct Alert Sent', `Sent automated SMS payment notification to ${matchPay.memberName} (Unit ${matchPay.flatNumber}).`, 'Payment');
     }
+  };
+
+  const deletePayment = (id: string) => {
+    const match = payments.find(p => p.id === id);
+    if (!match) return;
+
+    const updated = payments.filter(p => p.id !== id);
+    setPayments(updated);
+    saveToStorage('payments', updated);
+
+    recalculateFlatPaymentStatus(match.flatNumber, updated);
+    logActivity('BILL_DELETE', `Deleted billing invoice ${match.title} for ${match.memberName} (Flat ${match.flatNumber}).`);
   };
 
   const recalculateFlatPaymentStatus = (flatNumber: string, allPayments: Payment[]) => {
@@ -1453,13 +1533,36 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     addNotification('Factory Reset App', 'Reset app back to default demo building dataset.', 'General');
   };
 
+  // Dynamic filter to always omit payments of residents who/whose flat details are no longer active/present in `members`
+  const activePayments = useMemo(() => {
+    // If there are no members in the system at all (i.e. brand new setup), let's allow all payments so that they can see seed data if any.
+    // Otherwise, filter by checking if there is a matching active member.
+    if (members.length === 0) return payments;
+    
+    return payments.filter(p => {
+      // Keep general or unassigned bills
+      if (!p.flatNumber || p.memberName === 'System' || p.memberName === 'Unassigned') {
+        return true;
+      }
+      
+      const exists = members.some(m => 
+        m.flatNumber === p.flatNumber && (
+          m.name.toLowerCase().trim() === p.memberName.toLowerCase().trim() ||
+          p.memberName.toLowerCase().trim().includes(m.name.toLowerCase().trim()) ||
+          m.name.toLowerCase().trim().includes(p.memberName.toLowerCase().trim())
+        )
+      );
+      return exists;
+    });
+  }, [payments, members]);
+
   return (
     <SocietyContext.Provider value={{
       currentUser,
       config,
       members,
       flats,
-      payments,
+      payments: activePayments,
       expenses,
       notices,
       visitors,
@@ -1495,6 +1598,7 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       markPaymentPaid,
       generateMonthlyFees,
       triggerPaymentReminder,
+      deletePayment,
 
       addExpense,
       updateExpense,

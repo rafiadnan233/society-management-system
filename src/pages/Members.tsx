@@ -57,10 +57,12 @@ export default function Members() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [selectedMemberForHistory, setSelectedMemberForHistory] = useState<Member | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Committee State
   const [showCommitteeModal, setShowCommitteeModal] = useState(false);
   const [editingCommitteeMember, setEditingCommitteeMember] = useState<any | null>(null);
+  const [confirmDeleteCommitteeId, setConfirmDeleteCommitteeId] = useState<string | null>(null);
   
   // Committee Form Values
   const [cmNameEn, setCmNameEn] = useState('');
@@ -337,11 +339,6 @@ export default function Members() {
   };
 
   const handleDeleteCommitteeMember = (id: string) => {
-    const confirmMsg = language === 'bn' 
-      ? 'আপনি কি নিশ্চিতভাবে এই নির্বাচিত সদস্যকে অপসারণ করতে চান?'
-      : 'Are you sure you want to remove this elected committee member?';
-    if (!window.confirm(confirmMsg)) return;
-
     const updatedList = committeeMembers.filter((item: any) => item.id !== id);
     updateConfig({ committeeMembersJson: JSON.stringify(updatedList) });
   };
@@ -658,19 +655,42 @@ export default function Members() {
                     <Edit className="h-3 w-3 text-emerald-500" />
                     <span>{t.edit}</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (currentUser?.role !== 'Admin') return;
-                      if (window.confirm(language === 'bn' ? 'আপনি কি নিশ্চিতভাবে এই বাসিন্দা মুছে ফেলতে চান?' : 'Are you sure you want to delete this resident?')) {
-                        deleteMember(member.id);
-                      }
-                    }}
-                    className="p-1 px-2 border border-rose-950 rounded text-[10px] font-bold text-rose-500 hover:bg-rose-950/15 flex items-center gap-1 cursor-pointer"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                    <span>{t.delete}</span>
-                  </button>
+                  {deleteConfirmId === member.id ? (
+                    <div className="flex items-center gap-1.5 bg-rose-950/20 border border-rose-900/40 p-0.5 px-1.5 rounded animate-fade-in relative z-10">
+                      <span className="text-[9px] text-rose-400 font-extrabold font-sans uppercase tracking-wider">
+                        {language === 'bn' ? 'মুছে ফেলবেন?' : 'Are you sure?'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          deleteMember(member.id);
+                          setDeleteConfirmId(null);
+                        }}
+                        className="p-1 px-1.5 bg-rose-900 hover:bg-rose-800 rounded text-[9px] font-extrabold text-white cursor-pointer uppercase font-sans border border-rose-700/60 transition-colors"
+                      >
+                        {language === 'bn' ? 'হ্যাঁ' : 'Yes, Delete'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteConfirmId(null)}
+                        className="p-1 px-1.5 bg-neutral-900 hover:bg-neutral-800 rounded text-[9px] font-extrabold text-slate-300 cursor-pointer uppercase font-sans border border-emerald-950/80 transition-colors"
+                      >
+                        {language === 'bn' ? 'না' : 'No'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (currentUser?.role !== 'Admin') return;
+                        setDeleteConfirmId(member.id);
+                      }}
+                      className="p-1 px-2 border border-rose-950 rounded text-[10px] font-bold text-rose-500 hover:bg-rose-950/15 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      <span>{t.delete}</span>
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -818,14 +838,39 @@ export default function Members() {
                       <Edit className="h-3 w-3 text-emerald-500" />
                       <span>{t.edit}</span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteCommitteeMember(cMember.id)}
-                      className="px-2 py-1 border border-rose-950 rounded text-[10px] font-bold text-rose-500 hover:bg-rose-950/15 flex items-center gap-1 cursor-pointer"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                      <span>{t.delete}</span>
-                    </button>
+                    {confirmDeleteCommitteeId === cMember.id ? (
+                      <div className="flex items-center gap-1.5 bg-rose-950/20 border border-rose-900/40 p-0.5 px-1.5 rounded animate-fade-in relative z-10">
+                        <span className="text-[9px] text-rose-400 font-extrabold font-sans uppercase tracking-wider">
+                          {language === 'bn' ? 'অপসারণ?' : 'Sure?'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleDeleteCommitteeMember(cMember.id);
+                            setConfirmDeleteCommitteeId(null);
+                          }}
+                          className="px-2 py-0.5 bg-rose-900 hover:bg-rose-800 rounded text-[10px] font-extrabold text-white cursor-pointer uppercase font-sans border border-rose-700/60 transition-all"
+                        >
+                          {language === 'bn' ? 'হ্যাঁ' : 'Yes'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteCommitteeId(null)}
+                          className="px-2 py-0.5 bg-neutral-900 hover:bg-neutral-800 rounded text-[10px] font-extrabold text-slate-300 cursor-pointer uppercase font-sans border border-emerald-950/80 transition-all"
+                        >
+                          {language === 'bn' ? 'না' : 'No'}
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteCommitteeId(cMember.id)}
+                        className="px-2 py-1 border border-rose-950 rounded text-[10px] font-bold text-rose-500 hover:bg-rose-950/15 flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        <span>{t.delete}</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

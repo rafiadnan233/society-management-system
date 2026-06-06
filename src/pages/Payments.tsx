@@ -24,7 +24,8 @@ import {
   Download,
   MessageSquare,
   Phone,
-  Settings
+  Settings,
+  Trash2
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -43,7 +44,8 @@ export default function Payments() {
     currentUser,
     addPayment,
     updatePayment,
-    updateConfig
+    updateConfig,
+    deletePayment
   } = useSociety();
 
   const t = translations[language];
@@ -61,6 +63,7 @@ export default function Payments() {
   const [customMsgText, setCustomMsgText] = useState('');
   const [isGeneratingDirectPDFId, setIsGeneratingDirectPDFId] = useState<string | null>(null);
   const [directPDFPayment, setDirectPDFPayment] = useState<Payment | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const getAlertMessageTemplate = (p: Payment) => {
     if (language === 'bn') {
@@ -622,7 +625,7 @@ export default function Payments() {
                           className={`px-2.5 py-1 rounded text-[10px] font-bold cursor-pointer transition-all border ${
                             p.status === 'Overdue'
                               ? 'bg-amber-955 text-amber-300 hover:bg-amber-900 border border-amber-900/40'
-                              : 'bg-red-950/60 text-red-405 hover:bg-red-900 border border-red-900/40'
+                              : 'bg-red-950/60 text-red-400 hover:bg-red-900 border border-red-900/40'
                           }`}
                         >
                           {p.status === 'Overdue' 
@@ -640,6 +643,41 @@ export default function Payments() {
                         >
                           {language === 'bn' ? 'অ্যালার্ট পাঠান' : 'SMS / WA Alert'}
                         </button>
+                      )}
+
+                      {/* Delete payment details - Admin exclusive */}
+                      {currentUser?.role === 'Admin' && (
+                        confirmDeleteId === p.id ? (
+                          <div className="inline-flex items-center gap-1.5 p-1 bg-red-950/20 border border-red-900/30 rounded-md animate-pulse">
+                            <span className="text-[10px] text-[#D4AF37] font-bold font-mono">Sure?</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                deletePayment(p.id);
+                                setConfirmDeleteId(null);
+                              }}
+                              className="px-2 py-0.5 bg-red-600 hover:bg-red-500 text-white rounded text-[9px] font-extrabold cursor-pointer transition-all font-sans"
+                            >
+                              {language === 'bn' ? 'হ্যাঁ' : 'Yes'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="px-2 py-0.5 bg-neutral-850 hover:bg-neutral-800 text-slate-350 rounded text-[9px] font-extrabold cursor-pointer transition-all font-sans border border-neutral-700/50"
+                            >
+                              {language === 'bn' ? 'না' : 'No'}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(p.id)}
+                            className="px-2.5 py-1 bg-red-950/40 text-red-400 border border-red-900 rounded text-[10px] font-bold hover:bg-red-900/60 hover:text-white cursor-pointer inline-flex items-center gap-1 transition-all"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            <span>{language === 'bn' ? 'মুছে ফেলুন' : 'Delete'}</span>
+                          </button>
+                        )
                       )}
 
                     </td>
