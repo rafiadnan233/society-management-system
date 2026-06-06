@@ -87,7 +87,7 @@ export default function GoogleChat() {
   const [isSimulated, setIsSimulated] = useState(false);
 
   // Tab Control
-  const [activeMainTab, setActiveMainTab] = useState<'chat' | 'committee' | 'photogallery'>('chat');
+  const [activeMainTab, setActiveMainTab] = useState<'chat' | 'committee'>('chat');
 
   // Resident Photo Gallery State
   const [gallerySearch, setGallerySearch] = useState('');
@@ -741,75 +741,16 @@ export default function GoogleChat() {
             {language === 'bn' ? 'কমিউনিটি এলার্ট এবং পারস্পরিক আলোচনা উইজার্ড' : 'SOCIETY SPACES & CORE EMERGENCIES CONTROL CENTER'}
           </p>
         </div>
+        {currentUser?.role === 'Admin' && (
+          <div className="flex items-center gap-2 text-[10px] font-mono bg-emerald-950/60 border border-emerald-900/60 px-3.5 py-2 rounded-xl text-emerald-400 font-bold uppercase tracking-wider self-start md:self-auto shadow-sm">
+            <Shield className="h-4 w-4 text-[#D4AF37]" />
+            <span>{language === 'bn' ? 'এডমিন উইং সক্রিয়' : 'Admin Active'}</span>
+          </div>
+        )}
       </div>
 
       <div className="space-y-6">
-          {/* Main admin panel menu bar inside digital society chat room */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-neutral-900 border border-emerald-950 px-5 py-3.5 rounded-2xl shadow-xl">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => setActiveMainTab('chat')}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer border ${
-                  activeMainTab === 'chat'
-                    ? 'bg-emerald-600 border-[#D4AF37]/35 text-white font-extrabold shadow-lg shadow-emerald-950/40'
-                    : 'bg-neutral-950 text-slate-300 border-emerald-950/65 hover:border-[#D4AF37]/30 hover:text-white'
-                }`}
-              >
-                <MessageSquare className="h-4 w-4 text-emerald-405" />
-                <span>{language === 'bn' ? 'ডিজিটাল চ্যাট রুম' : 'Digital Chat Space'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveMainTab('committee')}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer border ${
-                  activeMainTab === 'committee'
-                    ? 'bg-emerald-600 border-[#D4AF37]/35 text-white font-extrabold shadow-lg shadow-emerald-950/40'
-                    : 'bg-neutral-950 text-slate-300 border-emerald-950/65 hover:border-[#D4AF37]/30 hover:text-white'
-                }`}
-              >
-                <Users className="h-4 w-4 text-[#D4AF37]" />
-                <span>{language === 'bn' ? 'পরিচালনা পর্ষদ গ্যালারী' : 'Committee Board Gallery'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveMainTab('photogallery')}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer border ${
-                  activeMainTab === 'photogallery'
-                    ? 'bg-emerald-600 border-[#D4AF37]/35 text-white font-extrabold shadow-lg shadow-emerald-950/40'
-                    : 'bg-neutral-950 text-slate-300 border-emerald-950/65 hover:border-[#D4AF37]/30 hover:text-white'
-                }`}
-              >
-                <Camera className="h-4 w-4 text-rose-500 animate-pulse" />
-                <span>{language === 'bn' ? 'বাসিন্দা ফটোগ্যালারী (৭২ ফ্ল্যাট)' : 'Resident Photo Gallery (72 Flats)'}</span>
-              </button>
-            </div>
-
-            {/* Quick action for Admin inside top menu bar */}
-            {activeMainTab === 'committee' && currentUser?.role === 'Admin' && (
-              <button
-                type="button"
-                onClick={openAddCommitteeModal}
-                className="flex items-center gap-2 rounded-xl bg-[#D4AF37] hover:bg-[#D4AF37]/90 text-black px-4.5 py-2.5 text-xs font-black uppercase tracking-wider shadow-md transform active:scale-95 transition-all cursor-pointer border border-[#D4AF37]/30"
-              >
-                <Plus className="h-4 w-4 text-black stroke-[3]" />
-                <span>{language === 'bn' ? 'সদস্য যোগ করুন' : 'Add Elected Officer'}</span>
-              </button>
-            )}
-
-            {/* General Admin status bar */}
-            {currentUser?.role === 'Admin' && activeMainTab !== 'committee' && (
-              <div className="flex items-center gap-2 text-[10px] font-mono bg-emerald-950/60 border border-emerald-900/60 px-3 py-1.5 rounded-lg text-emerald-400 font-bold uppercase tracking-wider">
-                <Shield className="h-3.5 w-3.5 text-[#D4AF37]" />
-                <span>{language === 'bn' ? 'এডমিন উইং সক্রিয়' : 'Admin Control Panel Active'}</span>
-              </div>
-            )}
-          </div>
-
-          {activeMainTab === 'chat' ? (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
               
               {/* LEFT SIDEBAR: Channels Categories and List */}
               <div className="lg:col-span-4 flex flex-col space-y-4">
@@ -1175,241 +1116,8 @@ export default function GoogleChat() {
               </div>
 
             </div>
-          ) : activeMainTab === 'committee' ? (
-            <div className="space-y-6">
-              {/* Admin Panel / Menu Bar inside the gallery */}
-              <div className="p-4 rounded-xl bg-neutral-950/45 border border-emerald-950/70 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <p className="text-xs text-slate-300 leading-relaxed max-w-2xl font-sans font-medium">
-                  {language === 'bn'
-                    ? 'আস্থা টুইন টাওয়ার্সের নির্বাচিত কমিটির সদস্য ও কর্মকর্তাদের পূর্ণাঙ্গ প্রোফাইল গ্যালারী। যেকোনো বাসিন্দা ছবির নিচে প্রদর্শিত নাম ও পর্ষদ পদের মাধ্যমে সহজেই যেকোনো কর্মকর্তার সাথে যোগাযোগ করতে পারবেন।'
-                    : 'A rich visual showcase of the officially elected committee and administrative executive members. Residents can easily view their digital cards containing headshots, credentials, and contact shortcuts.'
-                  }
-                </p>
-                
-                {currentUser?.role === 'Admin' && (
-                  <button
-                    type="button"
-                    onClick={openAddCommitteeModal}
-                    className="shrink-0 text-xs font-black bg-[#D4AF37] hover:bg-[#D4AF37]/90 text-black px-4 py-2 border border-[#D4AF37]/25 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-md"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>{language === 'bn' ? 'কর্মকর্তা যোগ করুন' : 'Add Executive Officer'}</span>
-                  </button>
-                )}
-              </div>
 
-              {/* Photo Gallery Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
-                {committeeMembers.length === 0 ? (
-                  <div className="col-span-full rounded-xl border border-dashed border-emerald-950 py-16 text-center text-xs text-slate-500 font-mono">
-                    {language === 'bn'
-                      ? 'কোনো নির্বাচিত কর্মকর্তা বা কমিটির সদস্য প্রকল্প ডাটাবেজে পাওয়া যায়নি।'
-                      : 'No elected committee officers found in the database. Please enlist profiles.'
-                    }
-                  </div>
-                ) : (
-                  committeeMembers.map((cMember: any, index: number) => {
-                    const name = language === 'bn' ? (cMember.nameBn || cMember.nameEn) : (cMember.nameEn || cMember.nameBn);
-                    const role = language === 'bn' ? (cMember.roleBn || cMember.roleEn) : (cMember.roleEn || cMember.roleBn);
-                    const photo = cMember.photoUrl || `https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&crop=face`;
-
-                    return (
-                      <div 
-                        key={cMember.id || index}
-                        className="rounded-2xl border border-emerald-950 bg-neutral-950/45 overflow-hidden flex flex-col justify-between group hover:border-[#D4AF37]/60 hover:shadow-xl hover:shadow-black/60 transition-all duration-300 relative"
-                      >
-                        {/* Elite Golden Ring Badge */}
-                        <div className="absolute top-3 right-3 z-10">
-                          <span className="rounded-full bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/30 px-2.5 py-0.5 text-[8.5px] font-black uppercase tracking-widest font-mono">
-                            {language === 'bn' ? 'নির্বাচিত' : 'ELECTED'}
-                          </span>
-                        </div>
-
-                        <div>
-                          {/* Image Display Frame */}
-                          <div className="relative aspect-square w-full bg-slate-900 border-b border-emerald-950 overflow-hidden">
-                            <img 
-                              src={photo} 
-                              alt={name}
-                              referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop`;
-                              }}
-                            />
-                            
-                            {/* Photo Change Overlay Trigger */}
-                            {currentUser?.role === 'Admin' && (
-                              <div className="absolute inset-0 z-20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40 backdrop-blur-[2px]">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setPhotoEditMember(cMember);
-                                    setPhotoEditUrl(cMember.photoUrl || '');
-                                  }}
-                                  className="bg-neutral-900 text-white hover:text-[#D4AF37] border border-emerald-900/50 hover:border-[#D4AF37]/60 rounded-xl px-3 py-2 text-xs font-bold font-sans flex flex-col items-center gap-1.5 shadow-xl transform transition-all cursor-pointer active:scale-95"
-                                  title={language === 'bn' ? 'ছবি পরিবর্তন করুন' : 'Change Photo'}
-                                >
-                                  <Camera className="h-5 w-5" />
-                                  <span>{language === 'bn' ? 'ছবি পরিবর্তন' : 'Change Photo'}</span>
-                                </button>
-                              </div>
-                            )}
-
-                            {/* Linear dark gradient overlay */}
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/40 to-transparent p-4 pt-10">
-                              <h4 className="text-sm font-black text-white tracking-tight drop-shadow-md leading-tight">{name}</h4>
-                              <p className="text-[11px] text-[#D4AF37] font-semibold mt-1 uppercase tracking-wide font-sans">{role}</p>
-                            </div>
-                          </div>
-
-                          {/* Info Body */}
-                          <div className="p-4 space-y-2.5">
-                            {/* Multi-language view */}
-                            <div className="text-[10px] text-slate-550 space-y-0.5 border-b border-emerald-950/60 pb-2.5 font-sans">
-                              {cMember.nameEn && cMember.nameBn && (
-                                <div className="truncate"><span className="font-mono text-[8.5px] text-[#D4AF37]/65 uppercase font-bold mr-1">BN:</span> <span className="text-slate-400 font-medium">{cMember.nameBn}</span></div>
-                              )}
-                              {cMember.roleEn && cMember.roleBn && (
-                                <div className="truncate"><span className="font-mono text-[8.5px] text-[#D4AF37]/65 uppercase font-bold mr-1">ROLE EN:</span> <span className="text-slate-400 font-medium">{cMember.roleEn}</span></div>
-                              )}
-                            </div>
-
-                            {/* Contact Details beneath headshots */}
-                            <div className="space-y-1.5 text-xs text-slate-300 pt-0.5 font-sans">
-                              {cMember.flatNumber && (
-                                <div className="flex items-center gap-2">
-                                  <Home className="h-3.5 w-3.5 text-[#D4AF37]/80 shrink-0" />
-                                  <span className="font-medium text-slate-200">{language === 'bn' ? 'ফ্ল্যাট নম্বর:' : 'Flat No:'} {cMember.flatNumber}</span>
-                                </div>
-                              )}
-                              
-                              {cMember.phone && (
-                                <div className="flex items-center gap-2">
-                                  <Phone className="h-3.5 w-3.5 text-emerald-400/80 shrink-0" />
-                                  <span className="font-mono text-[11px] font-medium text-slate-300">{cMember.phone}</span>
-                                </div>
-                              )}
-
-                              {cMember.email && (
-                                <div className="flex items-center gap-2">
-                                  <Mail className="h-3.5 w-3.5 text-emerald-400/80 shrink-0" />
-                                  <span className="truncate text-slate-300 block" title={cMember.email}>{cMember.email}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Admin Action Row inside card */}
-                        {currentUser?.role === 'Admin' && (
-                          <div className="px-4 pb-4 pt-3 border-t border-emerald-950/50 flex justify-between items-center gap-2 bg-black/25 shrink-0">
-                            {/* Sequence Sorting arrows */}
-                            <div className="flex items-center gap-1 font-mono">
-                              <button
-                                type="button"
-                                disabled={index === 0}
-                                onClick={() => {
-                                  if (index === 0) return;
-                                  const updated = [...committeeMembers];
-                                  const temp = updated[index];
-                                  updated[index] = updated[index - 1];
-                                  updated[index - 1] = temp;
-                                  updateConfig({ committeeMembersJson: JSON.stringify(updated) });
-                                }}
-                                className="p-1 px-2 border border-emerald-950 rounded hover:border-[#D4AF37]/45 bg-neutral-900 text-slate-400 hover:text-[#D4AF37] cursor-pointer disabled:opacity-20"
-                                title={language === 'bn' ? 'উপরে নিন' : 'Move Up'}
-                              >
-                                ▲
-                              </button>
-                              <button
-                                type="button"
-                                disabled={index === committeeMembers.length - 1}
-                                onClick={() => {
-                                  if (index === committeeMembers.length - 1) return;
-                                  const updated = [...committeeMembers];
-                                  const temp = updated[index];
-                                  updated[index] = updated[index + 1];
-                                  updated[index + 1] = temp;
-                                  updateConfig({ committeeMembersJson: JSON.stringify(updated) });
-                                }}
-                                className="p-1 px-2 border border-emerald-950 rounded hover:border-[#D4AF37]/45 bg-neutral-900 text-slate-400 hover:text-[#D4AF37] cursor-pointer disabled:opacity-20"
-                                title={language === 'bn' ? 'নিচে নিন' : 'Move Down'}
-                              >
-                                ▼
-                              </button>
-                            </div>
-
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => openEditCommitteeModal(cMember)}
-                                className="p-1.5 border border-emerald-900 hover:border-[#D4AF37]/40 rounded text-slate-300 hover:text-[#D4AF37] hover:bg-[#D4AF37]/5 transition-all cursor-pointer block"
-                                title={language === 'bn' ? 'এডিট করুন' : 'Edit Member'}
-                              >
-                                <Edit className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteCommitteeMember(cMember.id)}
-                                className="p-1.5 border border-rose-950 text-rose-500 hover:bg-rose-950/20 rounded transition-all cursor-pointer"
-                                title={language === 'bn' ? 'অপসারণ করুন' : 'Remove Member'}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Roles and Responsibilities Grid */}
-              <div className="mt-8 space-y-6 pt-8 border-t border-emerald-950/80">
-                <div className="flex flex-col gap-2">
-                  <h2 className="text-[18px] font-black text-white font-sans tracking-tight flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.8)]" />
-                    {language === 'bn' ? 'প্রস্তাবিত পদবী ও দায়িত্বসমূহ' : 'Proposed Designations & Responsibilities'}
-                  </h2>
-                  <p className="text-[13px] text-slate-400 font-sans">
-                    {language === 'bn' 
-                      ? 'আস্থা টুইন টাওয়ারসের ডিজিটাল কমিউনিটি চ্যাটরুমের স্পেস বা সেকশনের জন্য প্রস্তাবিত ৯টি পদবী ও তাদের দায়িত্বের তালিকা:' 
-                      : 'Proposed designations and responsibilities for the sections of Astha Twin Towers Digital Community Chatroom:'}
-                  </p>
-                </div>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {[
-                    { id: '1', rank: '১', bn: 'চেয়ারম্যান (Chairman)', en: 'Chairman', descBn: 'সামগ্রিক তদারকি ও নীতি নির্ধারণ।', descEn: 'Overall supervision and policy making.' },
-                    { id: '2', rank: '২', bn: 'প্রেসিডেন্ট (President)', en: 'President', descBn: 'প্রশাসনিক ও উন্নয়নমূলক কার্যক্রমের নেতৃত্ব।', descEn: 'Leadership in administrative and developmental activities.' },
-                    { id: '3', rank: '৩', bn: 'সেক্রেটারি (Secretary)', en: 'Secretary', descBn: 'অফিসিয়াল নথিপত্র ও পরিচালনা পর্ষদের সমন্বয়।', descEn: 'Coordination of official documents and board of directors.' },
-                    { id: '4', rank: '৪', bn: 'ম্যানেজমেন্ট অ্যাডমিন (Management Admin)', en: 'Management Admin', descBn: 'দৈনন্দিন কার্যক্রম ও অ্যাপ পরিচালনা।', descEn: 'Daily operations and app management.' },
-                    { id: '5', rank: '৫', bn: 'নিরাপত্তা সুপারভাইজার (Security Supervisor)', en: 'Security Supervisor', descBn: 'সার্বিক নিরাপত্তা ও সিসিটিভি তদারকি।', descEn: 'Overall security and CCTV supervision.' },
-                    { id: '6', rank: '৬', bn: 'অপারেশনস ম্যানেজার (Operations Manager)', en: 'Operations Manager', descBn: 'জেনারেটর, লিফট ও ইউটিলিটি রক্ষণাবেক্ষণ।', descEn: 'Generator, lift and utility maintenance.' },
-                    { id: '7', rank: '৭', bn: 'হিসাব রক্ষক (Accounts Officer)', en: 'Accounts Officer', descBn: 'লেজার ও আর্থিক লেনদেন ব্যবস্থাপনা।', descEn: 'Ledger and financial transaction management.' },
-                    { id: '8', rank: '৮', bn: 'কমিউনিটি রিলেশনস অফিসার (Community Relations Officer)', en: 'Community Relations Officer', descBn: 'বাসিন্দা ও স্টাফদের মধ্যে যোগাযোগ সমন্বয়।', descEn: 'Communication coordination among residents and staff.' },
-                    { id: '9', rank: '৯', bn: 'সাপোর্ট সার্ভিসেস (Support Services)', en: 'Support Services', descBn: 'জরুরি অভিযোগ ও সাধারণ সেবা প্রদান।', descEn: 'Emergency complaints and general service provision.' }
-                  ].map(role => (
-                    <div key={role.id} className="rounded-xl border border-emerald-950/70 bg-neutral-950/40 p-5 flex flex-col items-start hover:border-[#D4AF37]/40 hover:bg-neutral-900/60 hover:shadow-[0_0_15px_rgba(34,197,94,0.05)] transition-all group relative overflow-hidden">
-                      <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-emerald-900/10 blur-xl group-hover:bg-[#D4AF37]/10 transition-all"></div>
-                      <div className="text-[10px] font-black font-mono text-emerald-500/80 uppercase tracking-widest mb-1.5 group-hover:text-[#D4AF37] transition-colors">
-                        {language === 'bn' ? `পদবী - ${role.rank}` : `ROLE 0${role.id}`}
-                      </div>
-                      <h4 className="text-[15px] font-black text-white font-sans tracking-tight mb-3 flex-1 flex items-center">
-                        {language === 'bn' ? role.bn : role.en}
-                      </h4>
-                      <p className="text-[12px] text-slate-400 font-sans leading-relaxed border-t border-emerald-950/50 pt-2.5 w-full mt-auto group-hover:text-slate-300 transition-colors">
-                        {language === 'bn' ? role.descBn : role.descEn}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : (
+          {false && (
             <div className="space-y-6 animate-fadeIn pb-16">
               {/* Header Info Block */}
               <div className="p-5 rounded-2xl bg-gradient-to-r from-neutral-900 to-neutral-950 border border-[#D4AF37]/35 shadow-2xl relative overflow-hidden">

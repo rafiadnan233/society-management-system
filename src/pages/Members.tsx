@@ -26,7 +26,9 @@ import {
   Download,
   Calendar,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  Camera,
+  Shield
 } from 'lucide-react';
 import MemberPaymentHistory from '../components/MemberPaymentHistory';
 
@@ -47,7 +49,18 @@ export default function Members() {
   const t = translations[language];
 
   // Tab State: 'residents' | 'committee' or similar
-  const [activeSubTab, setActiveSubTab] = useState<'residents' | 'committee'>('residents');
+  const [activeSubTab, setActiveSubTab] = useState<'residents' | 'committee' | 'gallery'>('residents');
+
+  // Resident Photo Gallery State
+  const [gallerySearch, setGallerySearch] = useState('');
+  const [galleryFloorFilter, setGalleryFloorFilter] = useState<number | null>(null);
+  const [selectedGalleryFlat, setSelectedGalleryFlat] = useState<any | null>(null);
+  const [flatFormName, setFlatFormName] = useState('');
+  const [flatFormPhone, setFlatFormPhone] = useState('');
+  const [flatFormPhoto, setFlatFormPhoto] = useState('');
+  const [flatFormType, setFlatFormType] = useState<'Owner' | 'Tenant'>('Owner');
+  const [flatFormNid, setFlatFormNid] = useState('');
+  const [flatFormEmail, setFlatFormEmail] = useState('');
 
   // Filters & State
   const [searchQuery, setSearchQuery] = useState('');
@@ -349,7 +362,7 @@ export default function Members() {
       {/* Title block */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          {activeSubTab === 'residents' ? (
+          {activeSubTab === 'residents' && (
             <>
               <h2 className="text-xl font-extrabold text-white tracking-tight sm:text-2xl font-sans">
                 {t.members} ({filteredMembers.length})
@@ -358,7 +371,8 @@ export default function Members() {
                 Direct database directory of flat owners & tenants
               </p>
             </>
-          ) : (
+          )}
+          {activeSubTab === 'committee' && (
             <>
               <h2 className="text-xl font-extrabold text-white tracking-tight sm:text-2xl font-sans">
                 {language === 'bn' ? 'নির্বাচিত পরিচালনা পর্ষদ' : 'Elected Executive Committee'} ({committeeMembers.length})
@@ -371,9 +385,23 @@ export default function Members() {
               </p>
             </>
           )}
+          {activeSubTab === 'gallery' && (
+            <>
+              <h2 className="text-xl font-extrabold text-white tracking-tight sm:text-2xl font-sans flex items-center gap-2">
+                <Camera className="h-5 w-5 text-emerald-500 animate-pulse" />
+                {language === 'bn' ? 'আস্থা টুইন টাওয়ার্স - বাসিন্দা ফটোগ্যালারী (৭২ ফ্ল্যাট)' : 'Astha Twin Towers - Resident Photo Gallery (72 Units)'}
+              </h2>
+              <p className="text-xs text-slate-400 font-mono">
+                {language === 'bn' 
+                  ? 'আস্থা টুইন টাওয়ার্সের ৭২টি ফ্ল্যাটের সম্মানিত মালিক এবং বাসিন্দাদের ছবি ও যোগাযোগের ডিরেক্টরি' 
+                  : 'A rich visual showcase of the residents and flat owners across all 72 individual flat units'
+                }
+              </p>
+            </>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {activeSubTab === 'residents' ? (
+          {activeSubTab === 'residents' && (
             <>
               <button
                 onClick={handleExportCSV}
@@ -394,7 +422,8 @@ export default function Members() {
                 </button>
               )}
             </>
-          ) : (
+          )}
+          {activeSubTab === 'committee' && (
             <>
               {currentUser?.role === 'Admin' && (
                 <button
@@ -406,6 +435,16 @@ export default function Members() {
                 </button>
               )}
             </>
+          )}
+          {activeSubTab === 'gallery' && (
+            <div className="bg-emerald-950/40 border border-emerald-900/60 p-2 px-4 rounded-xl shrink-0 text-center flex items-center gap-3">
+              <span className="text-[10px] font-bold text-emerald-400 font-mono tracking-widest block uppercase">
+                {language === 'bn' ? 'আপলোডকৃত ছবি' : 'UPLOAD QUANTITY'}
+              </span>
+              <span className="text-base font-mono font-black text-[#D4AF37]">
+                {members ? members.filter((m: any) => m.photoUrl && m.photoUrl.trim() !== '').length : 0} / 72
+              </span>
+            </div>
           )}
         </div>
       </div>
@@ -431,6 +470,17 @@ export default function Members() {
           }`}
         >
           {language === 'bn' ? 'নির্বাচিত পরিচালনা পর্ষদ' : 'Elected Committee'}
+        </button>
+        <button
+          onClick={() => setActiveSubTab('gallery')}
+          className={`pb-3 text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+            activeSubTab === 'gallery'
+              ? 'border-[#D4AF37] text-[#D4AF37] font-extrabold'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Camera className="h-4 w-4 text-emerald-500" />
+          <span>{language === 'bn' ? 'বাসিন্দা ফটোগ্যালারী (৭২ ফ্ল্যাট)' : 'Resident Photo Gallery (72 Flats)'}</span>
         </button>
       </div>
 
@@ -880,6 +930,234 @@ export default function Members() {
       </div>
     </div>
   )}
+
+      {activeSubTab === 'gallery' && (
+        <div className="space-y-6 animate-fadeIn pb-16">
+          {/* Header Info Block */}
+          <div className="p-5 rounded-2xl bg-gradient-to-r from-neutral-900 to-neutral-950 border border-[#D4AF37]/35 shadow-2xl relative overflow-hidden">
+            <div className="absolute right-0 top-0 w-64 h-64 bg-emerald-990/10 blur-3xl rounded-full -z-10"></div>
+            <div className="flex flex-col md:flex-row gap-5 justify-between items-start md:items-center">
+              <div>
+                <h2 className="text-[19px] font-black font-sans text-white tracking-tight flex items-center gap-2">
+                  <span className="inline-flex h-2 w-2 rounded-full bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.8)] animate-pulse" />
+                  {language === 'bn' ? 'আস্থা টুইন টাওয়ার্স - বাসিন্দা ফটোগ্যালারী (৭২ ফ্ল্যাট)' : 'Astha Twin Towers - Resident Photo Gallery (72 Units)'}
+                </h2>
+                <p className="text-slate-400 text-xs font-sans mt-1.5 leading-relaxed max-w-3xl">
+                  {language === 'bn' 
+                    ? 'আস্থা টুইন টাওয়ার্সের ৭২টি ফ্ল্যাটের সম্মানিত মালিক এবং বাসিন্দাদের ছবি ও যোগাযোগের ডিরেক্টরি। ফ্ল্যাট বক্সে ক্লিক করে ছবি ও তথ্য আপলোড করে প্রোফাইল সাজাতে পারবেন।' 
+                    : 'A rich visual showcase of the residents and flat owners across all 72 individual flat units. Click on any flat block below to edit/assign ownership details, contact info, or upload portrait photos.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Filters Row */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-between items-stretch sm:items-center mt-6 pt-5 border-t border-emerald-950/80">
+              {/* Search Bar */}
+              <div className="relative flex-1 max-w-md">
+                <input 
+                  type="text" 
+                  value={gallerySearch}
+                  onChange={(e) => setGallerySearch(e.target.value)}
+                  placeholder={language === 'bn' ? 'ফ্ল্যাট নম্বর বা নাম দিয়ে খুঁজুন...' : 'Search by flat number or name...'}
+                  className="w-full bg-neutral-950 border border-emerald-950/70 p-2.5 pl-9 rounded-xl text-xs text-white placeholder-slate-500 focus:border-[#D4AF37]/50 focus:outline-none"
+                />
+                <span className="absolute left-3 top-3.5 text-slate-500">
+                  <Search className="h-4 w-4" />
+                </span>
+              </div>
+
+              {/* Floor Quick Filters */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+                <button
+                  type="button"
+                  onClick={() => setGalleryFloorFilter(null)}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer ${
+                    galleryFloorFilter === null 
+                      ? 'bg-[#D4AF37] text-neutral-950 border-[#D4AF37]' 
+                      : 'bg-neutral-900 text-slate-400 border-emerald-950 hover:text-white'
+                  }`}
+                >
+                  {language === 'bn' ? 'সব ফ্লোর' : 'All Floors'}
+                </button>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(floorNum => (
+                  <button
+                    key={floorNum}
+                    type="button"
+                    onClick={() => setGalleryFloorFilter(floorNum)}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black font-mono transition-all cursor-pointer border ${
+                      galleryFloorFilter === floorNum 
+                        ? 'bg-emerald-600 border-[#D4AF37]/40 text-white' 
+                        : 'bg-neutral-900 text-slate-400 border-emerald-950 hover:text-[#D4AF37]'
+                    }`}
+                  >
+                    {floorNum} {language === 'bn' ? 'তলা' : 'F'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Grid with exactly 72 custom styled boxes */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {(() => {
+              const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+              const renderedSlots: any[] = [];
+
+              for (let floor = 1; floor <= 9; floor++) {
+                for (let j = 0; j < 8; j++) {
+                  const letter = letters[j];
+                  const flatNum = `${floor}${letter}`;
+                  
+                  // Find flat details
+                  const flatSpec = flats ? (flats.find((f: any) => f.number === flatNum) || {
+                    number: flatNum,
+                    floor: floor,
+                    squareFeet: j === 0 || j === 1 ? 1800 : j === 2 || j === 3 ? 1550 : j === 4 || j === 5 ? 1450 : 1200,
+                    status: 'vacant',
+                    ownerName: 'Unassigned',
+                    renterName: '',
+                    phone: ''
+                  }) : {
+                    number: flatNum,
+                    floor: floor,
+                    squareFeet: j === 0 || j === 1 ? 1800 : j === 2 || j === 3 ? 1550 : j === 4 || j === 5 ? 1450 : 1200,
+                    status: 'vacant',
+                    ownerName: 'Unassigned',
+                    renterName: '',
+                    phone: ''
+                  };
+
+                  // Get any active registered member of this flat, priority to Owner
+                  const flatMembers = members ? members.filter((m: any) => m.flatNumber === flatNum && m.status === 'Active') : [];
+                  const flatOwner = flatMembers.find((m: any) => m.type === 'Owner') || flatMembers[0];
+
+                  // Apply filters
+                  if (galleryFloorFilter !== null && floor !== galleryFloorFilter) {
+                    continue;
+                  }
+
+                  if (gallerySearch.trim() !== '') {
+                    const searchLower = gallerySearch.toLowerCase();
+                    const matchesFlat = flatNum.toLowerCase().includes(searchLower);
+                    const matchesOwner = flatSpec.ownerName && flatSpec.ownerName.toLowerCase().includes(searchLower);
+                    const matchesRenter = flatSpec.renterName && flatSpec.renterName.toLowerCase().includes(searchLower);
+                    const matchesMember = flatOwner && flatOwner.name.toLowerCase().includes(searchLower);
+                    if (!matchesFlat && !matchesOwner && !matchesRenter && !matchesMember) {
+                      continue;
+                    }
+                  }
+
+                  renderedSlots.push({ flatNum, flatSpec, flatOwner });
+                }
+              }
+
+              if (renderedSlots.length === 0) {
+                return (
+                  <div className="col-span-full py-20 text-center text-xs text-slate-500 font-mono border border-dashed border-emerald-950 rounded-2xl">
+                    {language === 'bn' ? 'কোনো মেলানো ফ্ল্যাট পাওয়া যায়নি!' : 'No matching flats found.'}
+                  </div>
+                );
+              }
+
+              return renderedSlots.map(({ flatNum, flatSpec, flatOwner }) => {
+                const hasPhoto = flatOwner && flatOwner.photoUrl && flatOwner.photoUrl.trim() !== '';
+                const photo = hasPhoto ? flatOwner.photoUrl : null;
+                const residentName = flatOwner 
+                  ? flatOwner.name 
+                  : (flatSpec.ownerName !== 'Unassigned' ? flatSpec.ownerName : (language === 'bn' ? 'খালি / বরাদ্দ নেই' : 'Unassigned'));
+                
+                const isOccupied = flatSpec.status !== 'vacant' || flatOwner;
+                const typeBadge = flatOwner 
+                  ? (flatOwner.type === 'Owner' ? (language === 'bn' ? 'মালিক' : 'Owner') : (language === 'bn' ? 'ভাড়াটিয়া' : 'Tenant'))
+                  : (flatSpec.status === 'occupied_owner' ? (language === 'bn' ? 'মালিক' : 'Owner') : flatSpec.status === 'occupied_tenant' ? (language === 'bn' ? 'ভাড়াটিয়া' : 'Tenant') : null);
+
+                return (
+                  <div 
+                    key={flatNum}
+                    onClick={() => {
+                      const existing = flatOwner || (members && members.find((m: any) => m.flatNumber === flatNum));
+                      setSelectedGalleryFlat({ flatNum, flatSpec, member: existing });
+                      setFlatFormName(existing ? existing.name : (flatSpec.ownerName !== 'Unassigned' ? flatSpec.ownerName : ''));
+                      setFlatFormPhone(existing ? existing.phone : flatSpec.phone || '');
+                      setFlatFormPhoto(existing ? (existing.photoUrl || '') : '');
+                      setFlatFormType(existing ? existing.type : 'Owner');
+                      setFlatFormNid(existing ? (existing.nid || '') : '');
+                      setFlatFormEmail(existing ? (existing.email || '') : '');
+                    }}
+                    className="rounded-2xl border border-emerald-950/80 bg-neutral-950/45 overflow-hidden flex flex-col justify-between group hover:border-[#D4AF37] hover:shadow-xl hover:shadow-black/75 hover:bg-neutral-900/60 transition-all duration-300 relative cursor-pointer"
+                  >
+                    {/* Elegant Corner Flat Number Label */}
+                    <div className="absolute top-2.5 left-2.5 z-10">
+                      <span className="rounded bg-neutral-950 text-[#D4AF37] border border-emerald-900/60 px-2 py-0.5 text-[10px] font-mono font-black shadow-md tracking-wider">
+                        {flatNum}
+                      </span>
+                    </div>
+
+                    {typeBadge && (
+                      <div className="absolute top-2.5 right-2.5 z-10">
+                        <span className={`rounded px-1.5 py-0.5 text-[8.5px] font-black shadow-md uppercase tracking-wide border ${
+                          typeBadge === 'Owner' || typeBadge === 'মালিক'
+                            ? 'bg-amber-955/90 text-[#D4AF37] border-[#D4AF37]/35'
+                            : 'bg-[#032e2c]/90 text-emerald-300 border-emerald-900/40'
+                        }`}>
+                          {typeBadge}
+                        </span>
+                      </div>
+                    )}
+
+                    <div>
+                      {/* Image Box */}
+                      <div className="relative aspect-square w-full bg-slate-950/80 border-b border-emerald-950/60 overflow-hidden flex items-center justify-center">
+                        {photo ? (
+                          <img 
+                            src={photo} 
+                            alt={residentName}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          />
+                        ) : (
+                          <div className="text-center p-3 opacity-35 group-hover:opacity-75 transition-opacity">
+                            <span className="block text-2xl">🏢</span>
+                            <span className="text-[10px] font-mono font-bold text-slate-400 block mt-1">
+                              {language === 'bn' ? 'ছবি নেই' : 'NO PHOTO'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Content Area */}
+                      <div className="p-3 space-y-1">
+                        <div className="text-xs font-black text-white truncate group-hover:text-[#D4AF37] transition-colors leading-tight">
+                          {residentName}
+                        </div>
+                        <div className="text-[10px] font-sans font-medium text-slate-400 truncate flex items-center gap-1">
+                          <span className="text-emerald-500">📞</span>
+                          <span>
+                            {flatOwner ? flatOwner.phone : (flatSpec.phone || (language === 'bn' ? 'যোগাযোগ নম্বর নেই' : 'No phone'))}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom Status Ribbon */}
+                    <div className="bg-neutral-950 px-3 py-1.5 border-t border-emerald-950/60 flex items-center justify-between text-[9px] font-mono font-bold uppercase shrink-0">
+                      <span className="text-slate-500">
+                        {flatSpec.squareFeet} SFT
+                      </span>
+                      <span className={isOccupied ? 'text-emerald-400' : 'text-amber-500'}>
+                        {isOccupied 
+                          ? (language === 'bn' ? 'নিবন্ধিত' : 'OCCUPIED') 
+                          : (language === 'bn' ? 'খালি' : 'VACANT')}
+                      </span>
+                    </div>
+
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        </div>
+      )}
 
       {/* Add / Edit Member Modal popup */}
       {showAddModal && (
@@ -1343,6 +1621,187 @@ export default function Members() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 72 Flat Profile Detail & Photo Upload Drawer/Modal */}
+      {selectedGalleryFlat && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+          <div className="w-full max-w-lg rounded-2xl border border-[#D4AF37]/45 bg-[#0a0f0d] p-0 overflow-hidden shadow-2xl shadow-black animate-fadeIn">
+            
+            {/* Header banner */}
+            <div className="bg-gradient-to-r from-emerald-950 to-[#0e1713] p-5 border-b border-emerald-900/60 relative">
+              <div className="absolute right-4 top-4">
+                <button 
+                  onClick={() => setSelectedGalleryFlat(null)}
+                  className="rounded-full bg-black/40 hover:bg-black p-1.5 text-slate-400 hover:text-white transition-all border border-emerald-950/80 cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="space-y-1">
+                <span className="rounded bg-[#D4AF37] text-neutral-950 text-[10px] font-black font-mono tracking-widest px-2.5 py-0.5 uppercase">
+                  {language === 'bn' ? 'ফ্ল্যাট প্রোফাইল সংশোধন' : 'Flat Profile Assignment'}
+                </span>
+                <h3 className="text-lg font-black text-white font-sans tracking-tight">
+                  {language === 'bn' ? `ফ্ল্যাট ${selectedGalleryFlat.flatNum} - প্রোফাইল আপডেট` : `Flat ${selectedGalleryFlat.flatNum} Profile Setup`}
+                </h3>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Photo Preview & Edit details form */}
+              <div className="flex gap-4 items-center bg-neutral-950/40 p-4 rounded-xl border border-emerald-950">
+                <div className="h-16 w-16 rounded-xl bg-slate-900 border border-emerald-950 overflow-hidden shrink-0 flex items-center justify-center">
+                  {flatFormPhoto.trim() ? (
+                    <img 
+                      src={flatFormPhoto} 
+                      alt="Preview" 
+                      referrerPolicy="no-referrer"
+                      className="h-full w-full object-cover" 
+                    />
+                  ) : (
+                    <span className="text-xl">📸</span>
+                  )}
+                </div>
+                <div className="space-y-1 flex-1">
+                  <div className="text-xs font-black text-white">
+                    {language === 'bn' ? 'ছবি ইউআরএল লিংক' : 'Resident portrait image URL'}
+                  </div>
+                  <input 
+                    type="url"
+                    value={flatFormPhoto}
+                    onChange={(e) => setFlatFormPhoto(e.target.value)}
+                    placeholder="https://example.com/photo.jpg"
+                    className="w-full bg-neutral-900 border border-emerald-950 p-2 rounded text-xs text-white placeholder-slate-600 focus:outline-none focus:border-[#D4AF37]/50"
+                  />
+                </div>
+              </div>
+
+              {/* Info Form Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="col-span-1 sm:col-span-2 space-y-1">
+                  <label className="text-[10px] font-sans font-bold text-slate-400 block uppercase tracking-wider">
+                    {language === 'bn' ? 'নিবন্ধিত বাসিন্দার নাম' : 'Registered Resident Name'} *
+                  </label>
+                  <input 
+                    type="text" 
+                    value={flatFormName}
+                    onChange={(e) => setFlatFormName(e.target.value)}
+                    placeholder={language === 'bn' ? 'সম্মানিত বাসিন্দার সম্পূর্ণ নাম লিখুন' : 'Enter full name of resident'}
+                    className="w-full bg-neutral-950 border border-emerald-950 p-2.5 rounded-xl text-xs text-white focus:outline-none focus:border-[#D4AF37]/50"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-sans font-bold text-slate-400 block uppercase tracking-wider">
+                    {language === 'bn' ? 'মোবাইল নম্বর' : 'Phone Connection'} *
+                  </label>
+                  <input 
+                    type="tel" 
+                    value={flatFormPhone}
+                    onChange={(e) => setFlatFormPhone(e.target.value)}
+                    placeholder="e.g. 01700000000"
+                    className="w-full bg-neutral-950 border border-emerald-950 p-2.5 rounded-xl text-xs text-white focus:outline-none focus:border-[#D4AF37]/50"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-sans font-bold text-slate-400 block uppercase tracking-wider">
+                    {language === 'bn' ? 'ইমেইল এড্রেস' : 'Email Address'}
+                  </label>
+                  <input 
+                    type="email" 
+                    value={flatFormEmail}
+                    onChange={(e) => setFlatFormEmail(e.target.value)}
+                    placeholder="resident@example.com"
+                    className="w-full bg-neutral-950 border border-emerald-950 p-2.5 rounded-xl text-xs text-white focus:outline-none focus:border-[#D4AF37]/50"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-sans font-bold text-slate-400 block uppercase tracking-wider">
+                    {language === 'bn' ? 'বাসিন্দার ধরন' : 'Resident Status Type'}
+                  </label>
+                  <select 
+                    value={flatFormType}
+                    onChange={(e) => setFlatFormType(e.target.value as 'Owner' | 'Tenant')}
+                    className="w-full bg-neutral-950 border border-emerald-950 p-2.5 rounded-xl text-xs text-white focus:outline-none focus:border-[#D4AF37]/50"
+                  >
+                    <option value="Owner">{language === 'bn' ? 'বাসিন্দা মালিক (Owner)' : 'Resident Owner'}</option>
+                    <option value="Tenant">{language === 'bn' ? 'ভাড়াটিয়া resident (Tenant)' : 'Tenant Resident'}</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-sans font-bold text-slate-400 block uppercase tracking-wider">
+                    {language === 'bn' ? 'জাতীয় পরিচয়পত্র (NID)' : 'National ID (NID)'}
+                  </label>
+                  <input 
+                    type="text" 
+                    value={flatFormNid}
+                    onChange={(e) => setFlatFormNid(e.target.value)}
+                    placeholder="NID number optional"
+                    className="w-full bg-neutral-950 border border-emerald-950 p-2.5 rounded-xl text-xs text-white focus:outline-none focus:border-[#D4AF37]/50"
+                  />
+                </div>
+              </div>
+
+              {/* Detail warnings and action handlers */}
+              <div className="flex justify-end gap-2.5 border-t border-emerald-950 pt-5 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setSelectedGalleryFlat(null)}
+                  className="rounded-xl border border-emerald-950 hover:bg-neutral-900 px-4 py-2 text-xs font-bold text-slate-400 hover:text-white cursor-pointer transition-all"
+                >
+                  {language === 'bn' ? 'বাতিল' : 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  disabled={!flatFormName.trim() || !flatFormPhone.trim()}
+                  onClick={() => {
+                    const flatNum = selectedGalleryFlat.flatNum;
+                    const member = selectedGalleryFlat.member;
+                    
+                    if (member) {
+                      // Update existing member record
+                      const updatedRecord = {
+                        ...member,
+                        name: flatFormName.trim(),
+                        phone: flatFormPhone.trim(),
+                        photoUrl: flatFormPhoto.trim(),
+                        type: flatFormType,
+                        nid: flatFormNid.trim(),
+                        email: flatFormEmail.trim()
+                      };
+                      updateMember(updatedRecord);
+                    } else {
+                      // Add new member record to database
+                      const newRecord = {
+                        name: flatFormName.trim(),
+                        flatNumber: flatNum,
+                        type: flatFormType,
+                        phone: flatFormPhone.trim(),
+                        nid: flatFormNid.trim(),
+                        email: flatFormEmail.trim() || `${flatNum.toLowerCase()}@asthatwintowers.com`,
+                        familyMembers: [],
+                        status: 'Active' as const,
+                        photoUrl: flatFormPhoto.trim()
+                      };
+                      addMember(newRecord);
+                    }
+                    setSelectedGalleryFlat(null);
+                  }}
+                  className="rounded-xl bg-emerald-600 border border-[#D4AF37]/30 px-6 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer transition-all"
+                >
+                  {language === 'bn' ? 'সংরক্ষণ' : 'Save Details'}
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
