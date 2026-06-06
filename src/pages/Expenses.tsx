@@ -33,7 +33,10 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend
+  Legend,
+  PieChart,
+  Pie,
+  Cell
 } from 'recharts';
 
 export default function Expenses() {
@@ -76,6 +79,28 @@ export default function Expenses() {
   });
 
   const totalExpenseSum = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+  const CATEGORY_COLORS: { [key: string]: string } = {
+    Staff_Salary: '#f43f5e',       // rose-500
+    Electricity_Bill: '#f59e0b',   // amber-500
+    Water_Bill: '#06b6d4',         // cyan-500
+    Repairs: '#3b82f6',            // blue-500
+    Cleaning_Garbage: '#10b981',   // emerald-500
+    Security_Equipment: '#8b5cf6', // violet-500
+    Community_Event: '#ec4899',    // pink-500
+    Others: '#64748b'              // slate-500
+  };
+
+  const pieData = Object.keys(categoryLabels).map((catKey) => {
+    const value = filteredExpenses
+      .filter(e => e.category === catKey)
+      .reduce((sum, e) => sum + e.amount, 0);
+    return {
+      name: categoryLabels[catKey],
+      value,
+      color: CATEGORY_COLORS[catKey] || '#64748b'
+    };
+  }).filter(item => item.value > 0);
 
   const formatBDT = (val: number) => {
     return new Intl.NumberFormat(language === 'bn' ? 'bn-BD' : 'en-US', {
@@ -223,27 +248,75 @@ export default function Expenses() {
           <span className="absolute bottom-0 right-0 h-12 w-12 bg-rose-500/5 rounded-tl-full" />
         </div>
 
-        {/* Categories Analysis panel */}
+        {/* Categories Analysis panel with Pie Chart */}
         <div className="lg:col-span-2 rounded-xl border border-emerald-950 bg-neutral-950/45 p-5 space-y-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-white font-mono">
-            Category distributions
-          </h3>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 pt-1">
-            {Object.keys(categoryLabels).map((catKey) => {
-              const catSum = expenses
-                .filter(e => e.category === catKey)
-                .reduce((sum, e) => sum + e.amount, 0);
-              return (
-                <div key={catKey} className="bg-neutral-900/60 p-2.5 rounded border border-emerald-950/40 text-center space-y-1">
-                  <span className="block text-[8px] text-slate-400 truncate uppercase font-mono tracking-tight font-bold">
-                    {categoryLabels[catKey]}
-                  </span>
-                  <span className="block font-mono text-xs font-bold text-white">
-                    {formatBDT(catSum)}
-                  </span>
-                </div>
-              );
-            })}
+          <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+            
+            {/* Grid of values */}
+            <div className="flex-1 space-y-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-white font-mono">
+                Category distributions
+              </h3>
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                {Object.keys(categoryLabels).map((catKey) => {
+                  const catSum = filteredExpenses
+                    .filter(e => e.category === catKey)
+                    .reduce((sum, e) => sum + e.amount, 0);
+                  const catColor = CATEGORY_COLORS[catKey] || '#64748b';
+                  return (
+                    <div key={catKey} className="bg-neutral-900/60 p-2.5 rounded border border-emerald-950/40 flex items-center justify-between gap-1">
+                      <div className="space-y-0.5 min-w-0 flex-1">
+                        <span className="block text-[8px] text-slate-400 truncate uppercase font-mono tracking-tight font-bold">
+                          {categoryLabels[catKey]}
+                        </span>
+                        <span className="block font-mono text-[11px] font-bold text-white">
+                          {formatBDT(catSum)}
+                        </span>
+                      </div>
+                      <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: catColor }} />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Recharts Pie Chart */}
+            <div className="w-full md:w-60 flex flex-col items-center justify-center shrink-0">
+              <span className="text-[10px] uppercase font-bold text-slate-400 font-mono tracking-wider mb-2">
+                {language === 'bn' ? 'ব্যয়ের ভাগ বিশ্লেষণ' : 'Expense Share Breakdown'}
+              </span>
+              <div className="h-44 w-full relative flex items-center justify-center">
+                {pieData.length === 0 ? (
+                  <div className="text-center text-[10px] text-slate-500 font-mono">
+                    {language === 'bn' ? 'কোন খরচ নেই' : 'No expenses recorded'}
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={65}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {pieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#09090b', borderColor: '#1c1917', borderRadius: '8px' }}
+                        itemStyle={{ fontSize: '10px', color: '#fff' }}
+                        formatter={(value: any) => [formatBDT(Number(value)), '']}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+
           </div>
         </div>
 
