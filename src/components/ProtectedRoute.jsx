@@ -1,21 +1,16 @@
 import React from 'react';
 import { useSociety } from '../context/SocietyContext';
-import { auth } from '../utils/firebase';
-import { sendEmailVerification } from 'firebase/auth';
-import { ShieldAlert, LogIn, Mail } from 'lucide-react';
+import { ShieldAlert, LogIn } from 'lucide-react';
 
 export default function ProtectedRoute({ children, allowedRoles }) {
   const { currentUser } = useSociety();
   const [loading, setLoading] = React.useState(true);
-  const [firebaseUser, setFirebaseUser] = React.useState(null);
-  const [verificationSent, setVerificationSent] = React.useState(false);
 
   React.useEffect(() => {
-    const unsub = auth.onAuthStateChanged((user) => {
-      setFirebaseUser(user);
+    const timer = setTimeout(() => {
       setLoading(false);
-    });
-    return () => unsub();
+    }, 200);
+    return () => clearTimeout(timer);
   }, []);
 
   if (loading) {
@@ -30,7 +25,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
   }
 
   // Redirect to Login if unauthenticated
-  if (!firebaseUser || !currentUser) {
+  if (!currentUser) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-neutral-950 p-6 text-center animate-fadeIn">
         <div className="max-w-md rounded-2xl border-2 border-emerald-800 bg-neutral-900 p-8 shadow-xl">
@@ -45,47 +40,6 @@ export default function ProtectedRoute({ children, allowedRoles }) {
           >
             Go To Secure Sign-In
           </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Verify Email block if they registered but didn't verify yet
-  if (!firebaseUser.emailVerified && currentUser.role !== 'Admin') {
-    const handleResend = async () => {
-      try {
-        await sendEmailVerification(firebaseUser);
-        setVerificationSent(true);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-neutral-950 p-6 text-center animate-fadeIn">
-        <div className="max-w-md rounded-2xl border-2 border-amber-600/50 bg-neutral-900 p-8 shadow-2xl relative overflow-hidden">
-          <span className="absolute -top-12 -left-12 h-24 w-24 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
-          <Mail className="mx-auto h-12 w-12 text-amber-500 mb-4 animate-bounce" />
-          <h2 className="text-lg font-bold text-white mb-2 font-sans">Verify Your Email Address</h2>
-          <p className="text-sm text-slate-400 mb-6 leading-relaxed font-sans">
-            We have dispatched a secure activation email linkage to <strong className="text-emerald-400">{currentUser.email}</strong>. 
-            Please check your mailbox (including spam folder) and verify your account to unlock operations.
-          </p>
-          <div className="space-y-3">
-            <button 
-              onClick={handleResend}
-              disabled={verificationSent}
-              className={`w-full rounded-xl px-4 py-3 text-xs font-black uppercase tracking-wider cursor-pointer border transition-all ${verificationSent ? 'bg-emerald-950 border-emerald-800 text-emerald-400 font-bold' : 'bg-amber-600/90 border-amber-500 hover:bg-amber-500 text-white'}`}
-            >
-              {verificationSent ? 'Verification Mail Resubmitted!' : 'Resend Verification Mail'}
-            </button>
-            <button 
-              onClick={() => window.location.reload()}
-              className="w-full rounded-xl border border-neutral-750 bg-neutral-800 text-slate-300 hover:bg-neutral-750 hover:text-white px-4 py-3 text-xs font-bold uppercase transition-all cursor-pointer"
-            >
-              I Have Verified (Reload Page)
-            </button>
-          </div>
         </div>
       </div>
     );
