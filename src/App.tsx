@@ -26,7 +26,6 @@ import Settings from './pages/Settings';
 import Profile from './pages/Profile';
 import BackupRestore from './pages/BackupRestore';
 import Construction from './pages/Construction';
-import GoogleChat from './pages/GoogleChat';
 
 function AppContent() {
   const { currentUser, activeTab } = useSociety();
@@ -70,8 +69,6 @@ function AppContent() {
         return <Flats />;
       case 'construction':
         return <Construction />;
-      case 'chat':
-        return <GoogleChat />;
       case 'payments':
         return <Payments />;
       case 'expenses':

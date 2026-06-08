@@ -112,9 +112,9 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           
-          <div className="flex items-center gap-2 bg-[#0c0a09]/50 border border-[#D4AF37]/20 p-2.5 rounded-lg">
-            <Calendar className="h-4 w-4 text-emerald-400" />
-            <span className="text-[10px] sm:text-xs font-mono font-bold text-[#D4AF37]">
+          <div className="flex items-center gap-2 bg-black border border-neutral-800 p-2.5 rounded-lg shadow-md">
+            <Calendar className="h-4 w-4 text-white" />
+            <span className="text-[10px] sm:text-xs font-mono font-bold text-white">
               {new Date().toLocaleDateString(language === 'bn' ? 'bn-BD' : 'en-US', {
                 weekday: 'long',
                 year: 'numeric',

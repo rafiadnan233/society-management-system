@@ -23,7 +23,6 @@ import {
   LogOut,
   X,
   HardHat,
-  MessageSquare,
   Phone
 } from 'lucide-react';
 
@@ -44,7 +43,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     { id: 'payments', label: t.payments, icon: CreditCard, roles: ['Admin', 'Resident', 'Committee Member'] },
     { id: 'expenses', label: t.expenses, icon: TrendingDown, roles: ['Admin'] },
     { id: 'notices', label: t.notices, icon: Megaphone, roles: ['Admin', 'Committee Member', 'Resident'] },
-    { id: 'chat', label: t.chat, icon: MessageSquare, roles: ['Admin', 'Committee Member', 'Resident'] },
     { id: 'complaints', label: t.complaints, icon: LifeBuoy, roles: ['Admin', 'Committee Member', 'Resident'] },
     { id: 'visitors', label: t.visitors, icon: UserCheck, roles: ['Admin', 'Security Guard', 'Staff'] },
     { id: 'staff', label: t.staff, icon: ShieldAlert, roles: ['Admin'] },
