@@ -37,16 +37,16 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const t = translations[language];
 
   const menuItems = [
-    { id: 'dashboard', label: t.dashboard, icon: LayoutDashboard, roles: ['Admin', 'Resident', 'Staff'] },
-    { id: 'members', label: t.members, icon: Users, roles: ['Admin', 'Resident', 'Staff'] },
-    { id: 'flats', label: t.flats, icon: Building2, roles: ['Admin', 'Resident', 'Staff'] },
-    { id: 'construction', label: t.construction, icon: HardHat, roles: ['Admin', 'Resident', 'Staff'] },
-    { id: 'payments', label: t.payments, icon: CreditCard, roles: ['Admin', 'Resident'] },
+    { id: 'dashboard', label: t.dashboard, icon: LayoutDashboard, roles: ['Admin', 'Committee Member', 'Resident', 'Security Guard', 'Staff'] },
+    { id: 'members', label: t.members, icon: Users, roles: ['Admin', 'Committee Member', 'Resident'] },
+    { id: 'flats', label: t.flats, icon: Building2, roles: ['Admin', 'Committee Member', 'Resident', 'Security Guard'] },
+    { id: 'construction', label: t.construction, icon: HardHat, roles: ['Admin', 'Committee Member', 'Resident'] },
+    { id: 'payments', label: t.payments, icon: CreditCard, roles: ['Admin', 'Resident', 'Committee Member'] },
     { id: 'expenses', label: t.expenses, icon: TrendingDown, roles: ['Admin'] },
-    { id: 'notices', label: t.notices, icon: Megaphone, roles: ['Admin', 'Resident', 'Staff'] },
-    { id: 'chat', label: t.chat, icon: MessageSquare, roles: ['Admin', 'Resident', 'Staff'] },
-    { id: 'complaints', label: t.complaints, icon: LifeBuoy, roles: ['Admin', 'Resident', 'Staff'] },
-    { id: 'visitors', label: t.visitors, icon: UserCheck, roles: ['Admin', 'Staff'] },
+    { id: 'notices', label: t.notices, icon: Megaphone, roles: ['Admin', 'Committee Member', 'Resident'] },
+    { id: 'chat', label: t.chat, icon: MessageSquare, roles: ['Admin', 'Committee Member', 'Resident'] },
+    { id: 'complaints', label: t.complaints, icon: LifeBuoy, roles: ['Admin', 'Committee Member', 'Resident'] },
+    { id: 'visitors', label: t.visitors, icon: UserCheck, roles: ['Admin', 'Security Guard', 'Staff'] },
     { id: 'staff', label: t.staff, icon: ShieldAlert, roles: ['Admin'] },
     { id: 'reports', label: t.reports, icon: BarChart3, roles: ['Admin'] },
     { id: 'backup', label: t.backup, icon: Database, roles: ['Admin'] },
@@ -54,7 +54,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   const filteredItems = menuItems.filter(item => {
     if (!currentUser) return item.roles.includes('Resident');
-    return item.roles.includes(currentUser.role);
+    return item.roles.includes(currentUser.role as any);
   });
 
   return (
@@ -109,7 +109,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-semibold text-white">{currentUser.name}</p>
                 <p className="truncate text-[10px] text-emerald-300 font-mono">
-                  {currentUser.role === 'Admin' ? 'Super Admin' : currentUser.role === 'Resident' ? `Flat ${currentUser.flatNumber || 'Resident'}` : 'Security Staff'}
+                  {currentUser.role === 'Admin' ? 'Super Admin' : currentUser.role === 'Committee Member' ? 'Committee Member' : currentUser.role === 'Resident' ? `Flat ${currentUser.flatNumber || 'Resident'}` : 'Security Guard'}
                 </p>
               </div>
             </div>

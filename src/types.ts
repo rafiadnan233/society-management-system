@@ -7,7 +7,7 @@ export interface UserSession {
   uid: string;
   name: string;
   email: string;
-  role: 'Admin' | 'Resident' | 'Staff';
+  role: 'Admin' | 'Committee Member' | 'Resident' | 'Security Guard';
   flatNumber?: string;
   phone?: string;
   nid?: string;
@@ -190,7 +190,7 @@ export interface UserAccount {
   name: string;
   email: string;
   password?: string;
-  role: 'Admin' | 'Resident' | 'Staff';
+  role: 'Admin' | 'Committee Member' | 'Resident' | 'Security Guard';
   flatNumber?: string;
   phone?: string;
   nid?: string;

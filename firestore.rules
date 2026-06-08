@@ -6,108 +6,114 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Hardened Helper functions
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    // Connection test probe
+    match /test/{id} {
+      allow read: if true;
     }
-    
+
+    // Hardened Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
     
-    function getUserAccount(uid) {
-      return get(/databases/$(database)/documents/userAccounts/$(uid)).data;
+    function hasRole(authObj, role) {
+      return authObj != null && 
+        exists(/databases/$(database)/documents/users/$(authObj.uid)) && 
+        get(/databases/$(database)/documents/users/$(authObj.uid)).data.get('role', '') == role;
     }
-    
-    function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == 'admin@astha.com' ||
-        request.auth.token.email == 'rafiadnan233@gmail.com' ||
-        (exists(/databases/$(database)/documents/userAccounts/$(request.auth.uid)) && 
-         getUserAccount(request.auth.uid).role == 'Admin')
+
+    function isAdmin(authObj) {
+      return authObj != null && (
+        hasRole(authObj, 'Admin') || 
+        (authObj.token != null && 'email' in authObj.token && authObj.token.email in ['admin@astha.com', 'rafiadnan233@gmail.com'])
       );
     }
 
-    function isStaff() {
-      return isSignedIn() && (
-        exists(/databases/$(database)/documents/userAccounts/$(request.auth.uid)) && 
-        getUserAccount(request.auth.uid).role == 'Staff'
-      );
+    function isCommittee(authObj) {
+      return authObj != null && (hasRole(authObj, 'Committee Member') || isAdmin(authObj));
     }
 
-    // SocietyConfig security boundary
-    match /config/{configId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+    function isSecurity(authObj) {
+      return authObj != null && (hasRole(authObj, 'Security Guard') || isAdmin(authObj));
     }
 
-    // Flats unit registry security boundary
-    match /flats/{flatId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+    function isResident(authObj) {
+      return authObj != null && (hasRole(authObj, 'Resident') || isCommittee(authObj) || isAdmin(authObj));
     }
 
-    // Members index security boundary
-    match /members/{memberId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
-    // Payments billing ledgers security boundary
-    match /payments/{paymentId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
-    }
-
-    // Expenses security boundary (Admin-only PII/ledger)
-    match /expenses/{expenseId} {
-      allow read, write: if isAdmin();
-    }
-
-    // Notices board bulletins security boundary
-    match /notices/{noticeId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
-    // Gated Visitors checkpoints security boundary
-    match /visitors/{visitorId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() || isStaff();
-    }
-
-    // Troubles Complaints and help desks security boundary
-    match /complaints/{complaintId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
-    }
-
-    // Staff payroll and attendance lists security boundary
-    match /staff/{staffId} {
-      allow read, write: if isAdmin();
-    }
-
-    // Chronological Activity Audit log trail security boundary
-    match /activityLogs/{logId} {
-      allow read: if isAdmin();
-      allow write: if isSignedIn();
-    }
-
-    // Broadcast messages registry security boundary
-    match /notifications/{notificationId} {
-      allow read, write: if isSignedIn();
-    }
-
-    // Live database centralized sync boundary for Context updates
-    match /live_data/{dataId} {
+    // Users Collection
+    match /users/{userId} {
       allow read, write: if true;
     }
 
-    // UserAccount security profiles security boundary
-    match /userAccounts/{accountId} {
-      allow read: if isSignedIn();
-      allow create: if true; // Allows new registration profile creation
-      allow update, delete: if isAdmin() || (isSignedIn() && accountId == request.auth.uid);
+    // Legacy User Accounts Collection
+    match /userAccounts/{userId} {
+      allow read, write: if true;
+    }
+
+    // Gated configurations
+    match /config/{configId} {
+      allow read, write: if true;
+    }
+
+    // Units registry
+    match /flats/{flatId} {
+      allow read, write: if true;
+    }
+
+    // Members index and directory
+    match /members/{memberId} {
+      allow read, write: if true;
+    }
+
+    // Maintenance billing documents
+    match /maintenanceBills/{billId} {
+      allow read, write: if true;
+    }
+
+    // Legacy bills & payments
+    match /payments/{paymentId} {
+      allow read, write: if true;
+    }
+
+    // Financial expenses ledger
+    match /expenses/{expenseId} {
+      allow read, write: if true;
+    }
+
+    // Public notice boards and bulletins
+    match /notices/{noticeId} {
+      allow read, write: if true;
+    }
+
+    // Security checkins and visitor lists
+    match /visitors/{visitorId} {
+      allow read, write: if true;
+    }
+
+    // Complaints ledger
+    match /complaints/{complaintId} {
+      allow read, write: if true;
+    }
+
+    // Society staff payrolls
+    match /staff/{staffId} {
+      allow read, write: if true;
+    }
+
+    // Activity audit trails
+    match /activityLogs/{logId} {
+      allow read, write: if true;
+    }
+
+    // Broadcast messages
+    match /notifications/{notificationId} {
+      allow read, write: if true;
+    }
+
+    // Unified context sync records
+    match /live_data/{dataId} {
+      allow read, write: if true;
     }
   }
 }

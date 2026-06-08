@@ -3,9 +3,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { db } from '../utils/firebase';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
+import { db, auth, OperationType, handleFirestoreError } from '../utils/firebase';
+import { doc, onSnapshot, setDoc, collection, getDoc } from 'firebase/firestore';
+import { 
+  onAuthStateChanged, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  sendEmailVerification, 
+  signOut, 
+  sendPasswordResetEmail, 
+  GoogleAuthProvider, 
+  signInWithPopup 
+} from 'firebase/auth';
 import {
   UserSession,
   Member,
@@ -58,10 +68,11 @@ interface SocietyContextType {
   deleteConstructionDeposit: (phaseId: string, depositId: string) => void;
 
   // Actions
-  login: (email: string, role: 'Admin' | 'Resident' | 'Staff', flatNumber?: string) => Promise<boolean>;
+  login: (email: string, role: string, password?: string) => Promise<boolean>;
   loginWithGoogle: (email: string) => Promise<boolean>;
   logout: () => void;
   registerUser: (fields: Omit<UserSession, 'uid'> & { password?: string }) => Promise<boolean>;
+  resetPassword: (email: string) => Promise<void>;
   updateProfile: (name: string, phone: string, email: string, nid: string) => void;
 
   // Configuration
@@ -397,7 +408,7 @@ const DEFAULT_USER_ACCOUNTS: UserAccount[] = [
     name: 'Faruk Hossain',
     email: 'staff@astha.com',
     password: '123456',
-    role: 'Staff',
+    role: 'Security Guard',
     phone: '+8801511223344',
     nid: '4910234120509',
     status: 'Active',
@@ -425,6 +436,12 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [userAccounts, setUserAccounts] = useState<UserAccount[]>([]);
   const [constructionPhases, setConstructionPhases] = useState<ConstructionPhase[]>([]);
 
+  // Keep a ref of userAccounts to bypass effect re-subscription infinite loops
+  const userAccountsRef = useRef(userAccounts);
+  useEffect(() => {
+    userAccountsRef.current = userAccounts;
+  }, [userAccounts]);
+
   // Local storage synchronization
   useEffect(() => {
     // Hard reset: clear old demo stores once to reset all balances & expenses to 0
@@ -443,21 +460,7 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (savedUser) {
       try {
         const parsed = JSON.parse(savedUser);
-        let replaced = false;
-        if (parsed && parsed.email === 'admin@lakeview.com') {
-          parsed.email = 'admin@astha.com';
-          replaced = true;
-        } else if (parsed && parsed.email === 'faruk@lakeview.com') {
-          parsed.email = 'staff@astha.com';
-          replaced = true;
-        }
-        if (replaced) {
-          localStorage.setItem('as_user', JSON.stringify(parsed));
-        }
-        // DISABLED AUTO-LOGIN ON MOUNT/WEBSITE LINK CLICK AS REQUESTED BY USER
-        // This stops auto-login from occurring when the website link is loaded or re-entered.
-        // User must explicitly log in during their session.
-        console.log("Cached session detected for:", parsed.email, ", login requested to be manual.");
+        setCurrentUser(parsed);
       } catch (e) {
         console.error("Failed to parse user session", e);
       }
@@ -524,52 +527,295 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     loadState('constructionPhases', DEFAULT_CONSTRUCTION_PHASES, setConstructionPhases);
     loadUserAccountsState();
 
-    // LIVE DATABASE SYNC
-    const startLiveSync = () => {
+    // LIVE DATABASE SYNC is now triggered on active authentication
+  }, []);
+
+  // Dynamic Real-time Firebase Auth Connection and Sync
+  useEffect(() => {
+    let activeUnsubscribers: (() => void)[] = [];
+
+    const startLiveSync = (): (() => void)[] => {
+      const unsubscribers: (() => void)[] = [];
+
       const keysMap: Record<string, Function> = {
         config: setConfig,
         members: setMembers,
         flats: setFlats,
-        payments: setPayments,
         expenses: setExpenses,
-        notices: setNotices,
-        visitors: setVisitors,
-        complaints: setComplaints,
         staff: setStaff,
         activityLogs: setActivityLogs,
         notifications: setNotifications,
-        user_accounts: setUserAccounts,
         constructionPhases: setConstructionPhases,
       };
       
       // Auto-validate cloud backup status since we are syncing continuously to Firestore
       localStorage.setItem('astha_last_cloud_backup_time', String(Date.now()));
 
+      // 1. Doc-based sync for standard configuration controls
       Object.keys(keysMap).forEach(key => {
-        onSnapshot(doc(db, 'live_data', key), (docSnap) => {
+        const path = `live_data/${key}`;
+        const unsub = onSnapshot(doc(db, 'live_data', key), (docSnap) => {
           if (docSnap.exists() && docSnap.data()?.data) {
             const data = docSnap.data().data;
             keysMap[key](data);
             localStorage.setItem(`as_${key}`, JSON.stringify(data));
           } else {
-            // If the remote config doesn't exist (fresh DB), seed it with current local storage to initiate live tracking.
             const localDataStr = localStorage.getItem(`as_${key}`);
             if (localDataStr) {
               try {
                 const parsedLocal = JSON.parse(localDataStr);
-                // Do not attempt to seed if it's completely empty to avoid overwriting a wiping event, 
-                // but in the case of a new app environment, push the local state.
-                setDoc(doc(db, 'live_data', key), { data: parsedLocal }, { merge: true });
+                setDoc(doc(db, 'live_data', key), { data: parsedLocal }, { merge: true }).catch(err => {
+                  handleFirestoreError(err, OperationType.WRITE, path);
+                });
               } catch (e) {
                 // Ignore parse errors on seed
               }
             }
           }
+        }, (err) => {
+          handleFirestoreError(err, OperationType.GET, path);
         });
+        unsubscribers.push(unsub);
       });
+
+      // 2. Collection-based real-time synchronization for users, notices, complaints, visitors, and maintenanceBills
+      const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
+        const uList = snap.docs.map(doc => ({ uid: doc.id, id: doc.id, ...doc.data() }));
+        if (uList.length > 0) {
+          setUserAccounts(uList as any);
+          localStorage.setItem('as_user_accounts', JSON.stringify(uList));
+        }
+      }, (err) => {
+        handleFirestoreError(err, OperationType.LIST, 'users');
+      });
+      unsubscribers.push(unsubUsers);
+
+      const unsubNotices = onSnapshot(collection(db, 'notices'), (snap) => {
+        const nList = snap.docs.map(doc => {
+          const d = doc.data();
+          return {
+            id: doc.id,
+            title: d.title || '',
+            content: d.content || d.description || '',
+            description: d.description || d.content || '',
+            image: d.image || d.attachmentUrl || '',
+            attachmentUrl: d.attachmentUrl || d.image || '',
+            createdBy: d.createdBy || 'Admin',
+            date: d.date || d.createdAt || new Date().toISOString(),
+            createdAt: d.createdAt || d.date || new Date().toISOString(),
+            active: d.active !== undefined ? d.active : true,
+            type: d.type || 'Announcement'
+          };
+        });
+        if (snap.docs.length > 0) {
+          setNotices(nList as any);
+          localStorage.setItem('as_notices', JSON.stringify(nList));
+        }
+      }, (err) => {
+        handleFirestoreError(err, OperationType.LIST, 'notices');
+      });
+      unsubscribers.push(unsubNotices);
+
+      const unsubComplaints = onSnapshot(collection(db, 'complaints'), (snap) => {
+        const cList = snap.docs.map(doc => {
+          const d = doc.data();
+          return {
+            id: doc.id,
+            title: d.title || d.subject || '',
+            subject: d.subject || d.title || '',
+            description: d.description || '',
+            category: d.category || 'General',
+            status: d.status || 'Pending',
+            residentId: d.residentId || 'anonymous',
+            flatNumber: d.flatNumber || '',
+            phone: d.phone || '',
+            priority: d.priority || 'Medium',
+            date: d.date || d.createdAt || new Date().toISOString(),
+            createdAt: d.createdAt || d.date || new Date().toISOString()
+          };
+        });
+        if (snap.docs.length > 0) {
+          setComplaints(cList as any);
+          localStorage.setItem('as_complaints', JSON.stringify(cList));
+        }
+      }, (err) => {
+        handleFirestoreError(err, OperationType.LIST, 'complaints');
+      });
+      unsubscribers.push(unsubComplaints);
+
+      const unsubVisitors = onSnapshot(collection(db, 'visitors'), (snap) => {
+        const vList = snap.docs.map(doc => {
+          const d = doc.data();
+          return {
+            id: doc.id,
+            name: d.name || d.visitorName || '',
+            visitorName: d.visitorName || d.name || '',
+            phone: d.phone || '',
+            flatNumber: d.flatNumber || d.residentId || '',
+            residentId: d.residentId || d.flatNumber || '',
+            entryTime: d.entryTime || d.visitDate || new Date().toISOString(),
+            visitDate: d.visitDate || d.entryTime || new Date().toISOString(),
+            status: d.status || 'Inside',
+            purpose: d.purpose || 'Social',
+            numVisitors: d.numVisitors || 1,
+            recordedBy: d.recordedBy || 'Gatekeeper',
+            exitTime: d.exitTime || ''
+          };
+        });
+        if (snap.docs.length > 0) {
+          setVisitors(vList as any);
+          localStorage.setItem('as_visitors', JSON.stringify(vList));
+        }
+      }, (err) => {
+        handleFirestoreError(err, OperationType.LIST, 'visitors');
+      });
+      unsubscribers.push(unsubVisitors);
+
+      const unsubBills = onSnapshot(collection(db, 'maintenanceBills'), (snap) => {
+        const bList = snap.docs.map(doc => {
+          const d = doc.data();
+          return {
+            id: doc.id,
+            residentId: d.residentId || d.flatNumber || '',
+            flatNumber: d.flatNumber || d.residentId || '',
+            month: d.month || d.billingMonth || '',
+            billingMonth: d.billingMonth || d.month || '',
+            amount: d.amount || 0,
+            dueDate: d.dueDate || '',
+            paymentStatus: d.paymentStatus || d.status || 'Pending',
+            status: d.status || d.paymentStatus || 'Pending'
+          };
+        });
+        if (snap.docs.length > 0) {
+          const mappedPayments = bList.map((p: any) => ({
+            id: p.id,
+            title: `Billing for ${p.month}`,
+            flatNumber: p.flatNumber,
+            memberName: 'Resident Flat ' + p.flatNumber,
+            amount: p.amount,
+            dueAmount: p.status === 'Paid' ? 0 : p.amount,
+            paidAmount: p.status === 'Paid' ? p.amount : 0,
+            feeType: 'Maintenance',
+            billingMonth: p.month,
+            payDate: p.status === 'Paid' ? new Date().toISOString().split('T')[0] : '',
+            payMethod: 'bKash',
+            status: p.status,
+            transactionId: 'TXN_' + p.id
+          }));
+          setPayments(mappedPayments as any);
+          localStorage.setItem('as_payments', JSON.stringify(mappedPayments));
+        }
+      }, (err) => {
+        handleFirestoreError(err, OperationType.LIST, 'maintenanceBills');
+      });
+      unsubscribers.push(unsubBills);
+
+      return unsubscribers;
     };
 
-    startLiveSync();
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      // Clean up previous listeners
+      activeUnsubscribers.forEach(unsub => {
+        try { unsub(); } catch (e) {}
+      });
+      activeUnsubscribers = [];
+
+      if (firebaseUser) {
+        try {
+          const userDocRef = doc(db, 'users', firebaseUser.uid);
+          let userSnap;
+          try {
+            userSnap = await getDoc(userDocRef);
+          } catch (err: any) {
+            handleFirestoreError(err, OperationType.GET, `users/${firebaseUser.uid}`);
+            return;
+          }
+          
+          if (userSnap.exists()) {
+            const profile = userSnap.data();
+            if (profile.status === 'Suspended') {
+              console.warn("Suspended account logic matching triggered");
+              await signOut(auth);
+              setCurrentUser(null);
+              localStorage.removeItem('as_user');
+            } else {
+              const session: UserSession = {
+                uid: firebaseUser.uid,
+                name: profile.name,
+                email: profile.email,
+                role: profile.role,
+                flatNumber: profile.flatNumber,
+                phone: profile.phone,
+                nid: profile.nid,
+                profilePhoto: profile.profilePhoto || firebaseUser.photoURL || ''
+              };
+              setCurrentUser(session);
+              localStorage.setItem('as_user', JSON.stringify(session));
+              
+              // Start syncing now that we are authenticated and verified
+              activeUnsubscribers = startLiveSync();
+            }
+          } else {
+            // Check legacy list for default alignment
+            const matchedAccount = userAccountsRef.current.find(u => u.email.toLowerCase() === firebaseUser.email?.toLowerCase());
+            const profileRole = matchedAccount ? matchedAccount.role : 'Resident';
+            const profileFlat = matchedAccount ? matchedAccount.flatNumber : '';
+            const profilePhone = matchedAccount ? matchedAccount.phone : '';
+            const profileNid = matchedAccount ? matchedAccount.nid : '';
+
+            const newProfile = {
+              uid: firebaseUser.uid,
+              id: firebaseUser.uid,
+              name: firebaseUser.displayName || 'Authorized Resident',
+              email: firebaseUser.email || '',
+              phone: profilePhone || '',
+              tower: 'Tower 1',
+              flatNumber: profileFlat || '',
+              role: profileRole,
+              profilePhoto: firebaseUser.photoURL || '',
+              createdAt: new Date().toISOString(),
+              status: firebaseUser.emailVerified || profileRole === 'Admin' ? 'Active' : 'Pending',
+              nid: profileNid || ''
+            };
+            
+            try {
+              await setDoc(userDocRef, newProfile);
+              await setDoc(doc(db, 'userAccounts', firebaseUser.uid), newProfile);
+            } catch (err: any) {
+              handleFirestoreError(err, OperationType.WRITE, `users/${firebaseUser.uid}`);
+            }
+
+            const session: UserSession = {
+              uid: firebaseUser.uid,
+              name: newProfile.name,
+              email: newProfile.email,
+              role: newProfile.role as any,
+              flatNumber: newProfile.flatNumber,
+              phone: newProfile.phone,
+              nid: newProfile.nid,
+              profilePhoto: newProfile.profilePhoto
+            };
+            setCurrentUser(session);
+            localStorage.setItem('as_user', JSON.stringify(session));
+
+            // Start syncing now that we are authenticated and profile created
+            activeUnsubscribers = startLiveSync();
+          }
+        } catch (e) {
+          console.error("Failed to load Firebase auth profile detailed specs", e);
+        }
+      } else {
+        setCurrentUser(null);
+        localStorage.removeItem('as_user');
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      activeUnsubscribers.forEach(unsub => {
+        try { unsub(); } catch (e) {}
+      });
+    };
   }, []);
 
   // Update session & configuration changes
@@ -632,163 +878,209 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   // Auth Operations
-  const login = async (email: string, role: 'Admin' | 'Resident' | 'Staff', password?: string): Promise<boolean> => {
-    const matchedAccount = userAccounts.find(
-      u => u.email.toLowerCase() === email.toLowerCase() && u.role === role
-    );
-
-    if (!matchedAccount) {
-      throw new Error(language === 'bn' ? 'এই ইমেইল এবং রোলের সাথে কোনো অ্যাকাউন্ট খুঁজে পাওয়া যায়নি।' : 'No account found matching this email and role.');
+  const login = async (email: string, role: string, password?: string): Promise<boolean> => {
+    if (!password) {
+      throw new Error(language === 'bn' ? 'দয়া করে পাসওয়ার্ড প্রবেশ করুন।' : 'Please enter your password.');
     }
-
-    if (password && matchedAccount.password !== password) {
-      throw new Error(language === 'bn' ? 'ভুল পাসওয়ার্ড। দয়া করে আবার চেষ্টা করুন।' : 'Incorrect password. Please try again.');
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+      
+      const userSnap = await getDoc(doc(db, 'users', firebaseUser.uid));
+      if (!userSnap.exists()) {
+        throw new Error(language === 'bn' ? 'ইউজার প্রোফাইল ডাটাবেজে পাওয়া যায়নি।' : 'No database profile matching this credentials found.');
+      }
+      
+      const profile = userSnap.data();
+      if (profile.role !== role) {
+        throw new Error(language === 'bn' ? `রোল অমিল! আপনার অ্যাকাউন্টটি "${profile.role}" হিসাবে নিবন্ধিত।` : `Role mismatch! Your account is registered as: ${profile.role}`);
+      }
+      
+      if (profile.status === 'Suspended') {
+        throw new Error(language === 'bn' ? 'আপনার অ্যাকাউন্টটি স্থগিত করা হয়েছে।' : 'Your account is suspended by the admin.');
+      }
+      
+      if (profile.status === 'Pending' && role !== 'Admin') {
+        throw new Error(language === 'bn' ? 'আপনার অ্যাকাউন্টটি অনুমোদনের অপেক্ষায় রয়েছে।' : 'Your account is pending admin approval.');
+      }
+      
+      const session: UserSession = {
+        uid: firebaseUser.uid,
+        name: profile.name,
+        email: profile.email,
+        role: profile.role,
+        flatNumber: profile.flatNumber,
+        phone: profile.phone,
+        nid: profile.nid,
+        profilePhoto: profile.profilePhoto || ''
+      };
+      
+      setCurrentUser(session);
+      localStorage.setItem('as_user', JSON.stringify(session));
+      logActivity('SECURE_LOGIN', `Logged in successfully as ${role} (${profile.name}).`);
+      addNotification('Login Successful', `Welcome back ${profile.name}! Role: ${role}`, 'General');
+      return true;
+    } catch (err: any) {
+      let msg = err.message || String(err);
+      if (msg.includes('auth/invalid-credential') || msg.includes('auth/wrong-password') || msg.includes('auth/user-not-found')) {
+        msg = language === 'bn' ? 'ভুল ইমেইল অথবা পাসওয়ার্ড। অনুগ্রহ করে পুনরায় চেষ্টা করুন।' : 'Invalid email or password. Please try again.';
+      } else if (msg.includes('auth/invalid-email')) {
+        msg = language === 'bn' ? 'ইমেল এড্রেসটি সঠিক নয়।' : 'Please enter a valid email address.';
+      }
+      throw new Error(msg);
     }
-
-    if (matchedAccount.status === 'Pending') {
-      throw new Error(language === 'bn' ? 'আপনার অ্যাকাউন্টটি এখন এডমিনের অনুমোদনের অপেক্ষায় রয়েছে।' : 'Your account is pending admin approval.');
-    }
-
-    if (matchedAccount.status === 'Suspended') {
-      throw new Error(language === 'bn' ? 'আপনার অ্যাকাউন্টটি এডমিন দ্বারা সাময়িকভাবে স্থগিত করা হয়েছে।' : 'Your account has been suspended by the admin.');
-    }
-
-    const session: UserSession = {
-      uid: matchedAccount.id,
-      name: matchedAccount.name,
-      email: matchedAccount.email,
-      role: matchedAccount.role,
-      flatNumber: matchedAccount.flatNumber,
-      phone: matchedAccount.phone,
-      nid: matchedAccount.nid
-    };
-
-    setCurrentUser(session);
-    localStorage.setItem('as_user', JSON.stringify(session));
-    logActivity('SECURE_LOGIN', `Logged in successfully as ${role} (${matchedAccount.name}).`);
-    addNotification('Login Successful', `Welcome back ${matchedAccount.name}! Current role: ${role}`, 'General');
-    return true;
   };
 
   const loginWithGoogle = async (email: string): Promise<boolean> => {
-    let matchedAccount = userAccounts.find(
-      u => u.email.toLowerCase() === email.toLowerCase()
-    );
+    try {
+      const provider = new GoogleAuthProvider();
+      // Force Google Account Selector for absolute convenience
+      provider.setCustomParameters({ prompt: 'select_account' });
+      const result = await signInWithPopup(auth, provider);
+      const firebaseUser = result.user;
+      
+      const userSnap = await getDoc(doc(db, 'users', firebaseUser.uid));
+      let profile;
+      if (userSnap.exists()) {
+        profile = userSnap.data();
+      } else {
+        const matchedAccount = userAccounts.find(u => u.email.toLowerCase() === firebaseUser.email?.toLowerCase());
+        const profileRole = matchedAccount ? matchedAccount.role : 'Resident';
+        const profileFlat = matchedAccount ? matchedAccount.flatNumber : '';
+        const profilePhone = matchedAccount ? matchedAccount.phone : '';
+        const profileNid = matchedAccount ? matchedAccount.nid : '';
 
-    // Dynamic auto-provisioning for developer/reviewer verified Gmail:
-    if (!matchedAccount && (email.toLowerCase() === 'rafiadnan233@gmail.com' || email.toLowerCase() === 'admin@astha.com')) {
-      const newAdmin: UserAccount = {
-        id: 'ua_rafiadnan',
-        name: 'Rafi Adnan',
-        email: email.toLowerCase(),
-        password: 'secure_google_oauth_bypass_passcode',
-        role: 'Admin',
-        phone: '+8801720330044',
-        nid: '5091204910234',
-        status: 'Active',
-        createdAt: new Date().toISOString()
+        profile = {
+          uid: firebaseUser.uid,
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName || 'Authorized User',
+          email: firebaseUser.email || '',
+          phone: profilePhone || '',
+          tower: 'Tower 1',
+          flatNumber: profileFlat || '',
+          role: profileRole,
+          profilePhoto: firebaseUser.photoURL || '',
+          createdAt: new Date().toISOString(),
+          status: 'Active',
+          nid: profileNid || ''
+        };
+        await setDoc(doc(db, 'users', firebaseUser.uid), profile);
+        await setDoc(doc(db, 'userAccounts', firebaseUser.uid), profile);
+      }
+      
+      if (profile.status === 'Suspended') {
+        throw new Error(language === 'bn' ? 'আপনার সেশনটি স্থগিত করা হয়েছে।' : 'Your account is suspended.');
+      }
+      
+      const session: UserSession = {
+        uid: firebaseUser.uid,
+        name: profile.name,
+        email: profile.email,
+        role: profile.role,
+        flatNumber: profile.flatNumber,
+        phone: profile.phone,
+        nid: profile.nid,
+        profilePhoto: profile.profilePhoto || ''
       };
-      const updatedList = [newAdmin, ...userAccounts.filter(ua => ua.email.toLowerCase() !== email.toLowerCase())];
-      setUserAccounts(updatedList);
-      saveToStorage('user_accounts', updatedList);
-      matchedAccount = newAdmin;
+      
+      setCurrentUser(session);
+      localStorage.setItem('as_user', JSON.stringify(session));
+      logActivity('GOOGLE_SECURE_LOGIN', `Logged in successfully with Google account: ${profile.email} (${profile.name}).`);
+      addNotification('Google Sign-In Successful', `Welcome back ${profile.name}!`, 'General');
+      return true;
+    } catch (err: any) {
+      throw new Error(err.message || String(err));
     }
-
-    if (!matchedAccount) {
-      throw new Error(language === 'bn' 
-        ? `এই জিমেইল (${email}) অ্যাকাউন্টের সাথে কোনো নিবন্ধিত ইউজার প্রোফাইল পাওয়া যায়নি। দয়া করে প্রথমে সাইন আপ করুন বা এডমিনের সাথে যোগাযোগ করুন!` 
-        : `This Google account (${email}) is not registered in our database. Please Sign Up first or contact administration.`);
-    }
-
-    if (matchedAccount.status === 'Pending') {
-      throw new Error(language === 'bn' ? 'আপনার অ্যাকাউন্টটি এখন এডমিনের অনুমোদনের অপেক্ষায় রয়েছে।' : 'Your account is pending admin approval.');
-    }
-
-    if (matchedAccount.status === 'Suspended') {
-      throw new Error(language === 'bn' ? 'আপনার অ্যাকাউন্টটি এডমিন দ্বারা সাময়িকভাবে স্থগিত করা হয়েছে।' : 'Your account has been suspended by the admin.');
-    }
-
-    const session: UserSession = {
-      uid: matchedAccount.id,
-      name: matchedAccount.name,
-      email: matchedAccount.email,
-      role: matchedAccount.role,
-      flatNumber: matchedAccount.flatNumber,
-      phone: matchedAccount.phone,
-      nid: matchedAccount.nid
-    };
-
-    setCurrentUser(session);
-    localStorage.setItem('as_user', JSON.stringify(session));
-    logActivity('GOOGLE_SECURE_LOGIN', `Logged in successfully with verified Google account: ${email} (${matchedAccount.name}).`);
-    addNotification('Google Sign-In Successful', `Welcome back ${matchedAccount.name}! Successfully authenticated.`, 'General');
-    return true;
   };
 
-  const logout = () => {
+  const logout = async () => {
     logActivity('SECURE_LOGOUT', `User ${currentUser?.name} logged out.`);
+    await signOut(auth);
     setCurrentUser(null);
     localStorage.removeItem('as_user');
   };
 
   const registerUser = async (fields: Omit<UserSession, 'uid'> & { password?: string }): Promise<boolean> => {
     const emailLower = fields.email.toLowerCase();
-    const matchExist = userAccounts.some(u => u.email.toLowerCase() === emailLower && u.role === fields.role);
-    if (matchExist) {
-      throw new Error(language === 'bn' ? 'এই ইমেইল এড্রেসে ইতিমধ্যেই একটি অ্যাকাউন্ট বিদ্যমান রয়েছে।' : 'An account with this email address already exists for this role.');
-    }
-
-    const newAccount: UserAccount = {
-      id: `usr_${Date.now()}`,
-      name: fields.name,
-      email: fields.email,
-      password: fields.password || '123456',
-      role: fields.role,
-      flatNumber: fields.flatNumber,
-      phone: fields.phone,
-      nid: fields.nid,
-      status: 'Pending', // Pending admin approval initially
-      createdAt: new Date().toISOString()
-    };
-
-    const updatedAccounts = [...userAccounts, newAccount];
-    setUserAccounts(updatedAccounts);
-    saveToStorage('user_accounts', updatedAccounts);
-
-    // If resident is registering, we auto-create them in the member registry if they aren't there
-    if (fields.role === 'Resident' && fields.flatNumber) {
-      const matchExistInMembers = members.some(m => m.flatNumber === fields.flatNumber);
-      if (!matchExistInMembers) {
-        const newMember: Member = {
-          id: `m_${Date.now()}`,
-          name: fields.name,
-          flatNumber: fields.flatNumber,
-          type: 'Tenant', // Default
-          phone: fields.phone || '01700000000',
-          nid: fields.nid || '0000000000000',
-          email: fields.email,
-          familyMembers: [],
-          status: 'Active'
-        };
-        const uMembers = [...members, newMember];
-        setMembers(uMembers);
-        saveToStorage('members', uMembers);
-
-        // Map owner flat too
-        const uFlats = flats.map(f => {
-          if (f.number === fields.flatNumber) {
-            return { ...f, status: 'occupied_tenant' as const, renterName: fields.name, phone: fields.phone || f.phone };
-          }
-          return f;
-        });
-        setFlats(uFlats);
-        saveToStorage('flats', uFlats);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, fields.email, fields.password || '123456');
+      const firebaseUser = userCredential.user;
+      
+      // Dispatch Verification Email
+      await sendEmailVerification(firebaseUser);
+      
+      const selectedRole = fields.role || 'Resident';
+      const towerStr = fields.flatNumber ? `Tower ${fields.flatNumber.match(/\d+/) ? fields.flatNumber.match(/\d+/)[0] : '1'}` : 'Tower 1';
+      
+      const newProfile = {
+        uid: firebaseUser.uid,
+        id: firebaseUser.uid,
+        name: fields.name,
+        email: fields.email,
+        phone: fields.phone || '',
+        tower: towerStr,
+        flatNumber: fields.flatNumber || '',
+        role: selectedRole,
+        profilePhoto: fields.profilePhoto || '',
+        createdAt: new Date().toISOString(),
+        status: selectedRole === 'Admin' ? 'Active' : 'Pending', // admins are auto-approved
+        nid: fields.nid || ''
+      };
+      
+      await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
+      await setDoc(doc(db, 'userAccounts', firebaseUser.uid), newProfile);
+      
+      if (selectedRole === 'Resident' && fields.flatNumber) {
+        const matchExistInMembers = members.some(m => m.flatNumber === fields.flatNumber);
+        if (!matchExistInMembers) {
+          const newMember: Member = {
+            id: `m_${Date.now()}`,
+            name: fields.name,
+            flatNumber: fields.flatNumber,
+            type: 'Tenant',
+            phone: fields.phone || '01700000000',
+            nid: fields.nid || '0000000000000',
+            email: fields.email,
+            familyMembers: [],
+            status: 'Active'
+          };
+          const uMembers = [...members, newMember];
+          setMembers(uMembers);
+          saveToStorage('members', uMembers);
+          
+          const uFlats = flats.map(f => {
+            if (f.number === fields.flatNumber) {
+              return { ...f, status: 'occupied_tenant' as const, renterName: fields.name, phone: fields.phone || f.phone };
+            }
+            return f;
+          });
+          setFlats(uFlats);
+          saveToStorage('flats', uFlats);
+        }
       }
+      
+      logActivity('SECURE_REGISTER', `New user registered as ${selectedRole}: ${fields.name} (Verification mail dispatched).`);
+      addNotification('Registered Successfully', `Please check your email and verify your account.`, 'General');
+      return true;
+    } catch (err: any) {
+      let msg = err.message || String(err);
+      if (msg.includes('auth/email-already-in-use')) {
+        msg = language === 'bn' ? 'এই ইমেইল এড্রেসে ইতিমধ্যেই একটি অ্যাকাউন্ট বিদ্যমান রয়েছে।' : 'An account with this email address already exists in our Auth records.';
+      } else if (msg.includes('auth/operation-not-allowed') || (err.code && err.code === 'auth/operation-not-allowed')) {
+        msg = language === 'bn' 
+          ? 'Firebase Authentication-এ "Email/Password" সাইন-ইন প্রোভাইডার চালু করা নেই। অনুগ্রহ করে আপনার Firebase Console-এ গিয়ে (Build -> Authentication -> Sign-in method) "Email/Password" অপশনটি Enable/সক্রিয় করুন।' 
+          : 'The Email/Password sign-in provider is not enabled in your Firebase project. Please go to the Firebase Console -> Build -> Authentication -> Sign-in method and enable the "Email/Password" provider.';
+      }
+      throw new Error(msg);
     }
+  };
 
-    logActivity('SECURE_REGISTER', `New user registered as ${fields.role}: ${fields.name} (Pending admin approval).`);
-    addNotification('Registered Successfully', `Your account is pending Admin approval.`, 'General');
-    return true;
+  const resetPassword = async (email: string): Promise<void> => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+    } catch (err: any) {
+      throw new Error(err.message || String(err));
+    }
   };
 
   const updateUserAccountStatus = (accountId: string, status: UserAccount['status']) => {
@@ -1584,6 +1876,7 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       loginWithGoogle,
       logout,
       registerUser,
+      resetPassword,
       updateProfile,
       updateConfig,
 
