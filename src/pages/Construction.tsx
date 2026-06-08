@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useSociety } from '../context/SocietyContext';
 import { translations } from '../utils/translations';
 import { jsPDF } from 'jspdf';
@@ -41,7 +41,11 @@ import {
   FileDown,
   Download,
   Loader2,
-  FileText
+  FileText,
+  Clock,
+  Users,
+  Mic,
+  MicOff
 } from 'lucide-react';
 
 export default function Construction() {
@@ -103,6 +107,72 @@ export default function Construction() {
   const [dlVoucherNo, setDlVoucherNo] = useState<string>('');
   const [dlNotes, setDlNotes] = useState<string>('');
   const [dlDate, setDlDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [dlStatus, setDlStatus] = useState<'Paid' | 'Pending'>('Paid');
+  const [dlLaborCount, setDlLaborCount] = useState<number>(0);
+  const [selectedLedgerDate, setSelectedLedgerDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedLedgerMonth, setSelectedLedgerMonth] = useState<string>(new Date().toISOString().substring(0, 7));
+  const [summaryMode, setSummaryMode] = useState<'daily' | 'monthly'>('daily');
+
+  // Speech Recognition / Voice-to-Text Search State & Handler
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const startVoiceSearch = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert(language === 'bn' ? 'আপনার ব্রাউজার ভয়েস অনুসন্ধান সমর্থন করে না।' : 'Your browser does not support voice search.');
+      return;
+    }
+
+    if (isListening) {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      setIsListening(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = language === 'bn' ? 'bn-BD' : 'en-US';
+
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognition.onresult = (event: any) => {
+      const resultText = event.results[0][0].transcript;
+      if (resultText) {
+        let cleanText = resultText.trim();
+        if (cleanText.endsWith('.')) {
+          cleanText = cleanText.slice(0, -1);
+        }
+        setDepositSearch(cleanText);
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error:", event.error);
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    try {
+      recognition.start();
+    } catch (e) {
+      console.error("Failed to start speech recognition:", e);
+      setIsListening(false);
+    }
+  };
 
   // Form Fields State
   // Subscription form
@@ -384,6 +454,8 @@ export default function Construction() {
     setDlVoucherNo('');
     setDlNotes('');
     setDlDate(new Date().toISOString().split('T')[0]);
+    setDlStatus('Paid');
+    setDlLaborCount(0);
     setShowLedgerModal(true);
   };
 
@@ -398,6 +470,8 @@ export default function Construction() {
     setDlVoucherNo(dl.voucherNo || '');
     setDlNotes(dl.notes || '');
     setDlDate(dl.date);
+    setDlStatus(dl.status || 'Paid');
+    setDlLaborCount(dl.laborCount || 0);
     setShowLedgerModal(true);
   };
 
@@ -415,7 +489,9 @@ export default function Construction() {
       rate: dlRate || undefined,
       supplierOrRecipient: dlSupplierOrRecipient,
       voucherNo: dlVoucherNo || undefined,
-      notes: dlNotes || undefined
+      notes: dlNotes || undefined,
+      status: dlStatus,
+      laborCount: dlType === 'Labor' ? (dlLaborCount || undefined) : undefined
     };
 
     if (editingLedger) {
@@ -497,6 +573,22 @@ export default function Construction() {
       const totalLabor = filtered.filter(item => item.type === 'Labor').reduce((sum, item) => sum + item.amount, 0);
       const totalMaterial = filtered.filter(item => item.type === 'Material').reduce((sum, item) => sum + item.amount, 0);
       const totalSpent = filtered.reduce((sum, item) => sum + item.amount, 0);
+      const totalPaid = filtered.filter(item => !item.status || item.status === 'Paid').reduce((sum, item) => sum + item.amount, 0);
+      const totalPending = filtered.filter(item => item.status === 'Pending').reduce((sum, item) => sum + item.amount, 0);
+
+      const totalLaborCount = filtered.filter(item => item.type === 'Labor').reduce((sum, item) => {
+        if (item.laborCount !== undefined && item.laborCount > 0) {
+          return sum + item.laborCount;
+        }
+        if (item.qty) {
+          const match = item.qty.match(/\d+/);
+          if (match) {
+            const parsed = parseInt(match[0], 10);
+            if (!isNaN(parsed)) return sum + parsed;
+          }
+        }
+        return sum;
+      }, 0);
 
       // 1. STATS BOX SUMMARY
       doc.setFont('helvetica', 'bold');
@@ -505,33 +597,55 @@ export default function Construction() {
       doc.text("1. LEDGER SUMMARIZED REPORT", 15, y);
       y += 5;
 
-      // Summary boxes
+      // Summary boxes: Taller container for double-row stats
       doc.setDrawColor(226, 232, 240);
       doc.setFillColor(248, 250, 252);
-      doc.rect(15, y, 180, 22, 'FD');
+      doc.rect(15, y, 180, 32, 'FD');
 
+      // Grid line split
+      doc.setDrawColor(241, 245, 249);
+      doc.line(15, y + 16, 195, y + 16);
+
+      // ROW 1: Labor, Materials, Workers count
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(100, 116, 139);
-      doc.text("TOTAL LABOR COSTS", 20, y + 6);
-      doc.text("TOTAL MATERIAL PURCHASES", 80, y + 6);
-      doc.text("LEDGER GRAND TOTAL", 140, y + 6);
+      doc.text("TOTAL LABOR COSTS", 20, y + 5.5);
+      doc.text("TOTAL MATERIAL PURCHASES", 80, y + 5.5);
+      doc.text("TOTAL LABOR COUNT", 140, y + 5.5);
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
+      doc.setFontSize(9.5);
       doc.setTextColor(29, 78, 216); // Blue
-      doc.text(`BDT ${totalLabor.toLocaleString()}`, 20, y + 13);
+      doc.text(`BDT ${totalLabor.toLocaleString()}`, 20, y + 12);
       doc.setTextColor(109, 40, 217); // Purple
-      doc.text(`BDT ${totalMaterial.toLocaleString()}`, 80, y + 13);
-      doc.setTextColor(15, 23, 42); // Dark slate
-      doc.text(`BDT ${totalSpent.toLocaleString()}`, 140, y + 13);
+      doc.text(`BDT ${totalMaterial.toLocaleString()}`, 80, y + 12);
+      doc.setTextColor(51, 65, 85); // Slate 700
+      doc.text(`${totalLaborCount.toLocaleString()} Workers`, 140, y + 12);
+
+      // ROW 2: Paid, Pending, Grand Total
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text("TOTAL PAID AMOUNT", 20, y + 21.5);
+      doc.text("TOTAL PENDING AMOUNT", 80, y + 21.5);
+      doc.text("GRAND TOTAL AMOUNT", 140, y + 21.5);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(5, 150, 105); // Emerald/Green
+      doc.text(`BDT ${totalPaid.toLocaleString()}`, 20, y + 28);
+      doc.setTextColor(217, 119, 6); // Amber/Orange
+      doc.text(`BDT ${totalPending.toLocaleString()}`, 80, y + 28);
+      doc.setTextColor(15, 23, 42); // Navy/Slate
+      doc.text(`BDT ${totalSpent.toLocaleString()}`, 140, y + 28);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
       doc.setTextColor(148, 163, 184);
-      doc.text(`Type Filter Status: ${ledgerTypeFilter} | Records Found: ${filtered.length}`, 20, y + 18);
+      doc.text(`Type Filter Status: ${ledgerTypeFilter} | Records Found: ${filtered.length}`, 20, y + 37);
 
-      y += 30;
+      y += 45;
 
       // 2. LEDGER LIST OF ENTRIES
       checkNewPage(15);
@@ -542,7 +656,7 @@ export default function Construction() {
       y += 5;
 
       // Draw table headers
-      const colX = [15, 34, 52, 108, 142, 168];
+      const colX = [15, 34, 52, 110, 142, 168];
       
       doc.setFillColor(15, 23, 42);
       doc.rect(15, y, 180, 7, 'F');
@@ -551,7 +665,7 @@ export default function Construction() {
       doc.setFontSize(7.5);
       doc.setTextColor(255, 255, 255);
       doc.text("Date", colX[0] + 2, y + 5);
-      doc.text("Type", colX[1] + 2, y + 5);
+      doc.text("Type & Status", colX[1] + 2, y + 5);
       doc.text("Expense Head / Description", colX[2] + 2, y + 5);
       doc.text("Paid to / Supplier", colX[3] + 2, y + 5);
       doc.text("Rate & Qty", colX[4] + 2, y + 5);
@@ -560,45 +674,87 @@ export default function Construction() {
       y += 7;
 
       filtered.forEach((dl) => {
-        checkNewPage(10);
+        const rowHeight = 11;
+        checkNewPage(rowHeight + 2);
         
         doc.setFillColor(255, 255, 255);
-        doc.rect(15, y, 180, 8, 'F');
+        doc.rect(15, y, 180, rowHeight, 'F');
         doc.setDrawColor(241, 245, 249);
-        doc.line(15, y + 8, 195, y + 8);
+        doc.line(15, y + rowHeight, 195, y + rowHeight);
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7);
         doc.setTextColor(51, 65, 85);
 
         // Date
-        doc.text(dl.date, colX[0] + 2, y + 5);
+        doc.text(dl.date, colX[0] + 2, y + 6);
 
         // Type
         doc.setFont('helvetica', 'bold');
-        doc.text(dl.type.toUpperCase(), colX[1] + 2, y + 5);
-        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(30, 41, 59);
+        doc.text(dl.type.toUpperCase(), colX[1] + 2, y + 4.5);
+        
+        // Status indicator
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6.5);
+        if (dl.status === 'Pending') {
+          doc.setTextColor(180, 83, 9); // Pending amber
+          doc.text("PENDING", colX[1] + 2, y + 8);
+        } else {
+          doc.setTextColor(4, 120, 87); // Paid emerald
+          doc.text("PAID", colX[1] + 2, y + 8);
+        }
 
         // Description / Title
-        const maxDescWidth = 52;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(15, 23, 42);
+        const maxDescWidth = 56;
         let pTitle = dl.title;
         const titleLines = doc.splitTextToSize(pTitle, maxDescWidth);
-        doc.text(titleLines[0] || '', colX[2] + 2, y + 5);
+        doc.text(titleLines[0] || '', colX[2] + 2, y + 4.5);
+
+        // Subtext / Voucher / Notes
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(6.5);
+        doc.setTextColor(100, 116, 139);
+        let subText = '';
+        if (dl.voucherNo) subText += `Voucher #${dl.voucherNo} | `;
+        if (dl.notes) subText += `${dl.notes}`;
+        const subLines = doc.splitTextToSize(subText, maxDescWidth);
+        doc.text(subLines[0] || '', colX[2] + 2, y + 8);
 
         // Supplier
-        const supplierLines = doc.splitTextToSize(dl.supplierOrRecipient || '', 32);
-        doc.text(supplierLines[0] || '', colX[3] + 2, y + 5);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(71, 85, 105);
+        const supplierLines = doc.splitTextToSize(dl.supplierOrRecipient || '', 30);
+        doc.text(supplierLines[0] || '', colX[3] + 2, y + 6);
 
         // Rate & Qty
-        const rateQtyText = dl.rate && dl.qty ? `${dl.rate} x ${dl.qty}` : '—';
-        doc.text(rateQtyText, colX[4] + 2, y + 5);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(100, 116, 139);
+        const rateQtyText = dl.rate && dl.qty ? `${dl.rate.toLocaleString()} x ${dl.qty}` : '—';
+        doc.text(rateQtyText, colX[4] + 2, y + 4.5);
+
+        // Laborers if present
+        if (dl.type === 'Labor' && dl.laborCount) {
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(6);
+          doc.setTextColor(37, 99, 235); // Blue
+          doc.text(`👷 ${dl.laborCount} Workers`, colX[4] + 2, y + 8);
+        }
 
         // Total
         doc.setFont('helvetica', 'bold');
-        doc.text(dl.amount.toLocaleString(), colX[5] + 2, y + 5);
+        doc.setFontSize(8.5);
+        doc.setTextColor(15, 23, 42);
+        doc.text(dl.amount.toLocaleString(), colX[5] + 2, y + 6);
         doc.setFont('helvetica', 'normal');
 
-        y += 8;
+        y += rowHeight;
       });
 
       // Signature & Footer
@@ -617,6 +773,274 @@ export default function Construction() {
 
     } catch (error) {
       console.error("PDF generation failed:", error);
+    }
+  };
+
+  const generateMonthlyLedgerPDF = () => {
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      let y = 15;
+
+      const drawHeader = (isSubPage = false) => {
+        doc.setFillColor(15, 23, 42); // Navy theme header bar
+        doc.rect(15, 10, 180, 18, 'F');
+        
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.text("ASTHA TWIN TOWERS OWNERS SOCIETY", 20, 17);
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        const [year, month] = selectedLedgerMonth.split('-');
+        let monthName = selectedLedgerMonth;
+        try {
+          const dateObj = new Date(parseInt(year), parseInt(month) - 1, 1);
+          monthName = dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase();
+        } catch {}
+        const subtitle = `MONTHLY LABOR COST & PURCHASE LEDGER - ${monthName} - ${activePhase?.nameEn?.toUpperCase() || 'PHASE'}`;
+        doc.text(subtitle, 20, 23);
+        
+        doc.setFont('helvetica', 'italic');
+        const rightText = isSubPage ? `Page ${doc.internal.pages.length - 1}` : `Generated: ${new Date().toLocaleDateString()}`;
+        doc.text(rightText, 170, 20, { align: 'right' });
+      };
+
+      const checkNewPage = (needed: number) => {
+        if (y + needed > 275) {
+          doc.addPage();
+          drawHeader(true);
+          y = 35;
+        }
+      };
+
+      // Draw first page header
+      drawHeader();
+      y = 35;
+
+      // Filter entries for the selected month
+      const list = activePhase?.dailyLedger || [];
+      const filtered = list.filter(item => 
+        item.date && item.date.startsWith(selectedLedgerMonth)
+      );
+
+      const totalLabor = filtered.filter(item => item.type === 'Labor').reduce((sum, item) => sum + item.amount, 0);
+      const totalMaterial = filtered.filter(item => item.type === 'Material').reduce((sum, item) => sum + item.amount, 0);
+      const totalSpent = filtered.reduce((sum, item) => sum + item.amount, 0);
+      const totalPaid = filtered.filter(item => !item.status || item.status === 'Paid').reduce((sum, item) => sum + item.amount, 0);
+      const totalPending = filtered.filter(item => item.status === 'Pending').reduce((sum, item) => sum + item.amount, 0);
+
+      const totalLaborCount = filtered.filter(item => item.type === 'Labor').reduce((sum, item) => {
+        if (item.laborCount !== undefined && item.laborCount > 0) {
+          return sum + item.laborCount;
+        }
+        if (item.qty) {
+          const match = item.qty.match(/\d+/);
+          if (match) {
+            const parsed = parseInt(match[0], 10);
+            if (!isNaN(parsed)) return sum + parsed;
+          }
+        }
+        return sum;
+      }, 0);
+
+      // 1. STATS BOX SUMMARY
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text("1. MONTHLY LEDGER SUMMARIZED REPORT", 15, y);
+      y += 5;
+
+      // Summary boxes: Taller container for double-row stats
+      doc.setDrawColor(226, 232, 240);
+      doc.setFillColor(248, 250, 252);
+      doc.rect(15, y, 180, 32, 'FD');
+
+      // Grid line split
+      doc.setDrawColor(241, 245, 249);
+      doc.line(15, y + 16, 195, y + 16);
+
+      // ROW 1: Labor, Materials, Workers count
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text("TOTAL LABOR COSTS", 20, y + 5.5);
+      doc.text("TOTAL MATERIAL PURCHASES", 80, y + 5.5);
+      doc.text("CUMULATIVE LABOR COUNT", 140, y + 5.5);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(29, 78, 216); // Blue
+      doc.text(`BDT ${totalLabor.toLocaleString()}`, 20, y + 12);
+      doc.setTextColor(109, 40, 217); // Purple
+      doc.text(`BDT ${totalMaterial.toLocaleString()}`, 80, y + 12);
+      doc.setTextColor(51, 65, 85); // Slate 700
+      doc.text(`${totalLaborCount.toLocaleString()} workers`, 140, y + 12);
+
+      // ROW 2: Paid, Pending, Grand Total
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text("MONTHLY PAID AMOUNT", 20, y + 21.5);
+      doc.text("MONTHLY PENDING AMOUNT", 80, y + 21.5);
+      doc.text("GRAND EXPENSE TOTAL", 140, y + 21.5);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(5, 150, 105); // Emerald/Green
+      doc.text(`BDT ${totalPaid.toLocaleString()}`, 20, y + 28);
+      doc.setTextColor(217, 119, 6); // Amber/Orange
+      doc.text(`BDT ${totalPending.toLocaleString()}`, 80, y + 28);
+      doc.setTextColor(15, 23, 42); // Navy/Slate
+      doc.text(`BDT ${totalSpent.toLocaleString()}`, 140, y + 28);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(148, 163, 184);
+      doc.text(`Monthly Filter: ${selectedLedgerMonth} | Records Found: ${filtered.length}`, 20, y + 37);
+
+      y += 45;
+
+      // 2. LEDGER LIST OF ENTRIES
+      checkNewPage(15);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`2. CHRONOLOGICAL LIST OF ENTRIES FOR THE MONTH`, 15, y);
+      y += 5;
+
+      // Draw table headers
+      const colX = [15, 34, 52, 110, 142, 168];
+      
+      doc.setFillColor(15, 23, 42);
+      doc.rect(15, y, 180, 7, 'F');
+      
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(255, 255, 255);
+      doc.text("Date", colX[0] + 2, y + 5);
+      doc.text("Type & Status", colX[1] + 2, y + 5);
+      doc.text("Expense Head / Description", colX[2] + 2, y + 5);
+      doc.text("Paid to / Supplier", colX[3] + 2, y + 5);
+      doc.text("Rate & Qty", colX[4] + 2, y + 5);
+      doc.text("Total", colX[5] + 2, y + 5);
+      
+      y += 7;
+
+      if (filtered.length === 0) {
+        checkNewPage(15);
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(8.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text("No entries recorded for this month.", 20, y + 6);
+        y += 10;
+      } else {
+        filtered.forEach((dl) => {
+          const rowHeight = 11;
+          checkNewPage(rowHeight + 2);
+          
+          doc.setFillColor(255, 255, 255);
+          doc.rect(15, y, 180, rowHeight, 'F');
+          doc.setDrawColor(241, 245, 249);
+          doc.line(15, y + rowHeight, 195, y + rowHeight);
+
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7);
+          doc.setTextColor(51, 65, 85);
+
+          // Date
+          doc.text(dl.date, colX[0] + 2, y + 6);
+
+          // Type
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(7);
+          doc.setTextColor(30, 41, 59);
+          doc.text(dl.type.toUpperCase(), colX[1] + 2, y + 4.5);
+          
+          // Status indicator
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(6.5);
+          if (dl.status === 'Pending') {
+            doc.setTextColor(180, 83, 9); // Pending amber
+            doc.text("PENDING", colX[1] + 2, y + 8);
+          } else {
+            doc.setTextColor(4, 120, 87); // Paid emerald
+            doc.text("PAID", colX[1] + 2, y + 8);
+          }
+
+          // Description / Title
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(7.5);
+          doc.setTextColor(15, 23, 42);
+          const maxDescWidth = 56;
+          let pTitle = dl.title;
+          const titleLines = doc.splitTextToSize(pTitle, maxDescWidth);
+          doc.text(titleLines[0] || '', colX[2] + 2, y + 4.5);
+
+          // Subtext / Voucher / Notes
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(6.5);
+          doc.setTextColor(100, 116, 139);
+          let subText = '';
+          if (dl.voucherNo) subText += `Voucher #${dl.voucherNo} | `;
+          if (dl.notes) subText += `${dl.notes}`;
+          const subLines = doc.splitTextToSize(subText, maxDescWidth);
+          doc.text(subLines[0] || '', colX[2] + 2, y + 8);
+
+          // Supplier
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7);
+          doc.setTextColor(71, 85, 105);
+          const supplierLines = doc.splitTextToSize(dl.supplierOrRecipient || '', 30);
+          doc.text(supplierLines[0] || '', colX[3] + 2, y + 6);
+
+          // Rate & Qty
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7);
+          doc.setTextColor(100, 116, 139);
+          const rateQtyText = dl.rate && dl.qty ? `${dl.rate.toLocaleString()} x ${dl.qty}` : '—';
+          doc.text(rateQtyText, colX[4] + 2, y + 4.5);
+
+          // Laborers if present
+          if (dl.type === 'Labor' && dl.laborCount) {
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(6);
+            doc.setTextColor(37, 99, 235); // Blue
+            doc.text(`👷 ${dl.laborCount} Workers`, colX[4] + 2, y + 8);
+          }
+
+          // Total
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8.5);
+          doc.setTextColor(15, 23, 42);
+          doc.text(dl.amount.toLocaleString(), colX[5] + 2, y + 6);
+          doc.setFont('helvetica', 'normal');
+
+          y += rowHeight;
+        });
+      }
+
+      // Signature & Footer
+      checkNewPage(30);
+      y += 10;
+      doc.setDrawColor(203, 213, 225);
+      doc.line(15, y, 65, y);
+      doc.line(145, y, 195, y);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.text("PREPARED BY (ON-SITE CLERK)", 15, y + 4);
+      doc.text("APPROVED BY (TREASURER)", 145, y + 4);
+
+      doc.save(`Monthly-Ledger-${activePhase?.id || 'Phase'}-${selectedLedgerMonth}.pdf`);
+
+    } catch (error) {
+      console.error("Monthly PDF generation failed:", error);
     }
   };
 
@@ -968,6 +1392,460 @@ export default function Construction() {
     } catch (err) {
       console.error("PDF generation fail:", err);
       alert(language === 'bn' ? "পিডিএফ তৈরি করতে ত্রুটি ঘটেছে।" : "An error occurred while compiling the PDF audit.");
+    }
+  };
+
+  const generateMemberDepositsPDF = () => {
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      let y = 15;
+
+      const drawHeader = (isSubPage = false) => {
+        doc.setFillColor(15, 23, 42); // Private-equity standard dark slate header bar
+        doc.rect(15, 10, 180, 18, 'F');
+        
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.text("ASTHA TWIN TOWERS OWNERS SOCIETY", 20, 16);
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        const subTitleStr = `CONSTRUCTION MEMBER CONTRIBUTION STATEMENT  -  ${activePhase?.nameEn?.toUpperCase() || 'PHASE'}`;
+        doc.text(subTitleStr, 20, 22);
+        
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(7.5);
+        const rightText = isSubPage ? `Page ${doc.internal.pages.length - 1}` : `Generated: ${new Date().toLocaleDateString()}`;
+        doc.text(rightText, 170, 19, { align: 'right' });
+      };
+
+      const checkNewPage = (needed: number) => {
+        if (y + needed > 275) {
+          doc.addPage();
+          drawHeader(true);
+          y = 35;
+        }
+      };
+
+      // Draw initial page header
+      drawHeader();
+      y = 35;
+
+      // Filter settings explanation
+      let filterDisplayLabel = "All Dynamic Flats/Members";
+      if (depositFilter === 'Paid') {
+        filterDisplayLabel = "Settled/Fully Paid Contributors Only";
+      } else if (depositFilter === 'Due') {
+        filterDisplayLabel = "Outstanding Arrears & Dues Only";
+      }
+
+      if (depositSearch) {
+        filterDisplayLabel += ` (Matching search term: "${depositSearch}")`;
+      }
+
+      // Calculations based on filtered list
+      const totalFilteredCount = filteredLedger.length;
+      const totalRequiredSum = filteredLedger.reduce((sum, item) => sum + item.required, 0);
+      const totalPaidSum = filteredLedger.reduce((sum, item) => sum + item.paid, 0);
+      const totalDueSum = filteredLedger.reduce((sum, item) => sum + item.due, 0);
+
+      // Section 1: Executive Highlights
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text("1. CONTRIBUTIONS FINANCIAL SUMMARY", 15, y);
+      y += 5;
+
+      // Draw Summary Grid Boxes
+      doc.setDrawColor(226, 232, 240);
+      doc.setFillColor(248, 250, 252);
+      doc.rect(15, y, 180, 24, 'FD'); // Outer box
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      
+      // Render text grid labels
+      doc.text("FILTER STATE", 20, y + 6);
+      doc.text("TOTAL MEMBERS", 65, y + 6);
+      doc.text("TOTAL COLLECTED (PAID)", 105, y + 6);
+      doc.text("TOTAL OUTSTANDING (DUE)", 150, y + 6);
+      
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(51, 65, 85);
+      doc.text(depositFilter.toUpperCase(), 20, y + 13);
+      
+      doc.setTextColor(15, 23, 42);
+      doc.text(`${totalFilteredCount} Units`, 65, y + 13);
+      
+      doc.setTextColor(5, 150, 105); // emerald green
+      doc.text(`BDT ${totalPaidSum.toLocaleString()}`, 105, y + 13);
+      
+      doc.setTextColor(217, 119, 6); // amber
+      doc.text(`BDT ${totalDueSum.toLocaleString()}`, 150, y + 13);
+
+      doc.setDrawColor(241, 245, 249);
+      doc.line(15, y + 17, 195, y + 17);
+
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(6.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Active Scope: ${filterDisplayLabel}`, 20, y + 21);
+
+      y += 33;
+
+      // Section 2: Detailed Table
+      checkNewPage(15);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text("2. ITEMIZED LEDGER RECORD LIST", 15, y);
+      y += 5;
+
+      // Draw table headers
+      const colX = [15, 33, 75, 105, 137, 168];
+      
+      doc.setFillColor(15, 23, 42);
+      doc.rect(15, y, 180, 7, 'F');
+      
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(255, 255, 255);
+      doc.text("Flat No", colX[0] + 2, y + 5);
+      doc.text("Registered Owner", colX[1] + 2, y + 5);
+      doc.text("Target Due (BDT)", colX[2] + 2, y + 5);
+      doc.text("Collected (BDT)", colX[3] + 2, y + 5);
+      doc.text("Balance Due (BDT)", colX[4] + 2, y + 5);
+      doc.text("Status", colX[5] + 2, y + 5);
+      
+      y += 7;
+
+      if (filteredLedger.length === 0) {
+        checkNewPage(12);
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(8.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text("No member ledger matches the current filter selection.", 20, y + 6);
+        y += 10;
+      } else {
+        filteredLedger.forEach((item) => {
+          const rowHeight = 8;
+          checkNewPage(rowHeight + 1);
+          
+          doc.setFillColor(255, 255, 255);
+          doc.rect(15, y, 180, rowHeight, 'F');
+          doc.setDrawColor(241, 245, 249);
+          doc.line(15, y + rowHeight, 195, y + rowHeight);
+
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7.5);
+          doc.setTextColor(51, 65, 85);
+
+          // Flat No
+          doc.setFont('helvetica', 'bold');
+          doc.text(item.flatNo, colX[0] + 2, y + 5.5);
+          doc.setFont('helvetica', 'normal');
+
+          // Registered Owner name
+          const cleanName = item.ownerName ? item.ownerName.replace(/[^\x00-\x7F]/g, "") : `Owner ${item.flatNo}`; // strip non-ascii to avoid jsPDF box renders
+          const nameToUse = cleanName.trim() === "" ? `Owner ${item.flatNo}` : cleanName;
+          doc.text(nameToUse.substring(0, 24), colX[1] + 2, y + 5.5);
+
+          // Target share/required
+          doc.text(item.required.toLocaleString(), colX[2] + 2, y + 5.5);
+
+          // Paid amount
+          doc.text(item.paid.toLocaleString(), colX[3] + 2, y + 5.5);
+
+          // Due amount
+          if (item.due > 0) {
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(217, 119, 6); // Amber
+            doc.text(item.due.toLocaleString(), colX[4] + 2, y + 5.5);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(51, 65, 85);
+          } else {
+            doc.text("0", colX[4] + 2, y + 5.5);
+          }
+
+          // Status label
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(7);
+          if (item.isPaidAll) {
+            doc.setTextColor(5, 150, 105); // green
+            doc.text("PAID", colX[5] + 2, y + 5.5);
+          } else {
+            doc.setTextColor(220, 38, 38); // red
+            doc.text("DUE ARREAR", colX[5] + 2, y + 5.5);
+          }
+          doc.setFontSize(7.5); // reset
+          doc.setTextColor(51, 65, 85); // reset
+
+          y += rowHeight;
+        });
+
+        // Add Summary footer row in the table
+        checkNewPage(10);
+        doc.setFillColor(248, 250, 252);
+        doc.rect(15, y, 180, 8, 'F');
+        doc.setDrawColor(15, 23, 42);
+        doc.line(15, y + 8, 195, y + 8);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(15, 23, 42);
+        doc.text("Total", colX[0] + 2, y + 5.5);
+        
+        doc.text(`Count: ${totalFilteredCount}`, colX[1] + 2, y + 5.5);
+        doc.text(totalRequiredSum.toLocaleString(), colX[2] + 2, y + 5.5);
+        doc.text(totalPaidSum.toLocaleString(), colX[3] + 2, y + 5.5);
+        
+        doc.setTextColor(220, 38, 38); // Red for total dues
+        doc.text(totalDueSum.toLocaleString(), colX[4] + 2, y + 5.5);
+        
+        y += 12;
+      }
+
+      // Preparation, approval signature box
+      checkNewPage(32);
+      y += 8;
+      doc.setDrawColor(203, 213, 225);
+      doc.line(15, y, 65, y);
+      doc.line(145, y, 195, y);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      doc.text("PREPARED BY (TREASURER)", 15, y + 4.5);
+      doc.text("VERIFIED BY (SOCIETY CHAIRMAN)", 145, y + 4.5);
+
+      const statusDesc = depositFilter === 'All' ? 'Complete' : depositFilter;
+      doc.save(`Member-Deposits-${activePhase?.id || 'Phase'}-${statusDesc}.pdf`);
+
+    } catch (err) {
+      console.error("Member PDF compilation failed:", err);
+    }
+  };
+
+  const generateVentureExpensesPDF = () => {
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      let y = 15;
+
+      const drawHeader = (isSubPage = false) => {
+        doc.setFillColor(15, 23, 42); // slate 900
+        doc.rect(15, 10, 180, 18, 'F');
+        
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.text("ASTHA TWIN TOWERS OWNERS SOCIETY", 20, 16);
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        const subTitleStr = `CONSTRUCTION VENTURE EXPENDITURES & VOUCHERS - ${activePhase?.nameEn?.toUpperCase() || 'PHASE'}`;
+        doc.text(subTitleStr, 20, 22);
+        
+        doc.setFont('helvetica', 'italic');
+        const rightText = isSubPage ? `Page ${doc.internal.pages.length - 1}` : `Generated: ${new Date().toLocaleDateString()}`;
+        doc.text(rightText, 170, 19, { align: 'right' });
+      };
+
+      const checkNewPage = (needed: number) => {
+        if (y + needed > 275) {
+          doc.addPage();
+          drawHeader(true);
+          y = 35;
+        }
+      };
+
+      drawHeader();
+      y = 35;
+
+      // Filter settings explanation
+      let filterDisplayLabel = "All Venture Expense records matching filters";
+      if (expenseSearch) {
+        filterDisplayLabel += ` (Matching search term: "${expenseSearch}")`;
+      }
+
+      const totalFilteredCount = filteredPhaseExpenses.length;
+      const totalSpentSum = filteredPhaseExpenses.reduce((sum, item) => sum + item.amount, 0);
+
+      // Section 1: Financial Highlight card
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text("1. EXPENDITURES SUMMARY OVERVIEW", 15, y);
+      y += 5;
+
+      // Draw Summary Box
+      doc.setDrawColor(226, 232, 240);
+      doc.setFillColor(248, 250, 252);
+      doc.rect(15, y, 180, 22, 'FD');
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text("ACTIVE WORK PHASE", 20, y + 6);
+      doc.text("TOTAL RECORDED VOUCHERS", 85, y + 6);
+      doc.text("CUMULATIVE EXPENDITURE", 140, y + 6);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(15, 23, 42);
+      doc.text(activePhase?.nameEn?.toUpperCase() || 'PHASE', 20, y + 13);
+      doc.text(`${totalFilteredCount} Vouchers`, 85, y + 13);
+      doc.setTextColor(220, 38, 38); // red for expense
+      doc.text(`BDT ${totalSpentSum.toLocaleString()}`, 140, y + 13);
+
+      doc.setDrawColor(241, 245, 249);
+      doc.line(15, y + 16, 195, y + 16);
+
+      y += 28;
+
+      // Section 2: Detailed Table
+      checkNewPage(15);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text("2. ITEMIZED CONSTRUCTION EXPENDITURES & VOUCHERS", 15, y);
+      y += 5;
+
+      // Draw table headers
+      const colX = [15, 33, 50, 110, 142, 168];
+      
+      doc.setFillColor(15, 23, 42);
+      doc.rect(15, y, 180, 7, 'F');
+      
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(255, 255, 255);
+      doc.text("Date", colX[0] + 2, y + 5);
+      doc.text("Voucher #", colX[1] + 2, y + 5);
+      doc.text("Expenditure Head & Details", colX[2] + 2, y + 5);
+      doc.text("Contractor / Supplier", colX[3] + 2, y + 5);
+      doc.text("Status", colX[4] + 2, y + 5);
+      doc.text("Amount (BDT)", colX[5] + 2, y + 5);
+      
+      y += 7;
+
+      if (filteredPhaseExpenses.length === 0) {
+        checkNewPage(12);
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(8.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text("No expenditure items found matching key filters.", 20, y + 6);
+        y += 10;
+      } else {
+        filteredPhaseExpenses.forEach((exp) => {
+          const rowHeight = 11;
+          checkNewPage(rowHeight + 1);
+          
+          doc.setFillColor(255, 255, 255);
+          doc.rect(15, y, 180, rowHeight, 'F');
+          doc.setDrawColor(241, 245, 249);
+          doc.line(15, y + rowHeight, 195, y + rowHeight);
+
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7.5);
+          doc.setTextColor(51, 65, 85);
+
+          // Date
+          doc.text(exp.date, colX[0] + 2, y + 6.5);
+
+          // VoucherID
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(79, 70, 229); // indigo
+          doc.text(exp.voucherNo || '—', colX[1] + 2, y + 6.5);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(51, 65, 85);
+
+          // Head & Description
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(15, 23, 42);
+          const rawTitle = exp.title ? exp.title.replace(/[^\x00-\x7F]/g, "") : "Expense";
+          const titleToUse = rawTitle.trim() === "" ? "Voucher Expense" : rawTitle;
+          doc.text(titleToUse.substring(0, 32), colX[2] + 2, y + 4.5);
+          
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(6.5);
+          doc.setTextColor(100, 116, 139);
+          const rawDesc = exp.description ? exp.description.replace(/[^\x00-\x7F]/g, "") : "";
+          doc.text(rawDesc.substring(0, 48), colX[2] + 2, y + 8.5);
+          doc.setFontSize(7.5); // reset
+
+          // Supplier Name
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(51, 65, 85);
+          const rawSup = exp.supplierName ? exp.supplierName.replace(/[^\x00-\x7F]/g, "") : "—";
+          doc.text(rawSup.substring(0, 22), colX[3] + 2, y + 6.5);
+
+          // Status (Paid on completion)
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(7);
+          doc.setTextColor(5, 150, 105); // green
+          doc.text("SETTLED", colX[4] + 2, y + 6.5);
+          doc.setFontSize(7.5);
+
+          // Amount
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(220, 38, 38); // red/rose
+          doc.text(exp.amount.toLocaleString(), colX[5] + 2, y + 6.5);
+          doc.setTextColor(51, 65, 85); // reset
+          doc.setFont('helvetica', 'normal');
+
+          y += rowHeight;
+        });
+
+        // Summary footer row in the table
+        checkNewPage(12);
+        doc.setFillColor(248, 250, 252);
+        doc.rect(15, y, 180, 8, 'F');
+        doc.setDrawColor(15, 23, 42);
+        doc.line(15, y + 8, 195, y + 8);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(15, 23, 42);
+        doc.text("Total", colX[0] + 2, y + 5.5);
+        doc.text(`Count: ${totalFilteredCount} items`, colX[1] + 2, y + 5.5);
+        doc.text("Cumulative Sum of Settled Vouchers:", colX[2] + 2, y + 5.5);
+        
+        doc.setTextColor(220, 38, 38); // Red
+        doc.text(totalSpentSum.toLocaleString(), colX[5] + 2, y + 5.5);
+        
+        y += 12;
+      }
+
+      // Preparation, approval signature box
+      checkNewPage(32);
+      y += 8;
+      doc.setDrawColor(203, 213, 225);
+      doc.line(15, y, 65, y);
+      doc.line(145, y, 195, y);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      doc.text("PREPARED BY (TREASURER)", 15, y + 4.5);
+      doc.text("VERIFIED BY (SOCIETY CHAIRMAN)", 145, y + 4.5);
+
+      doc.save(`Venture-Expenses-${activePhase?.id || 'Phase'}.pdf`);
+
+    } catch (err) {
+      console.error("Venture Expense PDF compiling failed:", err);
     }
   };
 
@@ -1400,14 +2278,32 @@ export default function Construction() {
                 
                 {/* Search Input */}
                 <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute top-2.5 left-3 h-4 w-4 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder={language === 'bn' ? 'ফ্ল্যাট বা সদস্যের নাম অনুসন্ধান...' : 'Search by flat number or resident name...'}
-                    value={depositSearch}
-                    onChange={(e) => setDepositSearch(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-xs text-slate-800 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600/30 font-sans shadow-sm"
-                  />
+                  <div className="relative w-full">
+                    <Search className="absolute top-2.5 left-3 h-4 w-4 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder={language === 'bn' ? 'ফ্ল্যাট বা সদস্যের নাম অনুসন্ধান...' : 'Search by flat number or resident name...'}
+                      value={depositSearch}
+                      onChange={(e) => setDepositSearch(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-10 text-xs text-slate-800 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600/30 font-sans shadow-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={startVoiceSearch}
+                      title={language === 'bn' ? 'কণ্ঠস্বর দিয়ে সন্ধান করুন' : 'Voice Search'}
+                      className={`absolute inset-y-1 right-1.5 px-2 rounded-md flex items-center justify-center transition-all cursor-pointer ${
+                        isListening
+                          ? 'bg-red-500 text-white animate-pulse'
+                          : 'text-slate-400 hover:text-emerald-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {isListening ? (
+                        <Mic className="h-3.5 w-3.5 animate-bounce" />
+                      ) : (
+                        <Mic className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Filters and Add New */}
@@ -1440,6 +2336,23 @@ export default function Construction() {
                       {language === 'bn' ? 'বকেয়া' : 'Due'}
                     </button>
                   </div>
+
+                  {/* Member PDF Statement download button */}
+                  <button
+                    onClick={generateMemberDepositsPDF}
+                    className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-700 px-3.5 py-1.8 text-xs font-bold cursor-pointer transition-all duration-150 shadow-sm"
+                    type="button"
+                  >
+                    <FileDown className="h-4.5 w-4.5" />
+                    <span>
+                      {depositFilter === 'All' 
+                        ? (language === 'bn' ? 'সব চাঁদা খতিয়ান ডাউনলোড (PDF)' : 'Download All Contributions (PDF)')
+                        : depositFilter === 'Paid'
+                        ? (language === 'bn' ? 'পরিশোধিত খতিয়ান ডাউনলোড (PDF)' : 'Download Paid List (PDF)')
+                        : (language === 'bn' ? 'বকেয়া খতিয়ান ডাউনলোড (PDF)' : 'Download Arrears List (PDF)')
+                      }
+                    </span>
+                  </button>
 
                   {isAdmin && (
                     <button
@@ -1576,15 +2489,26 @@ export default function Construction() {
                   />
                 </div>
 
-                {isAdmin && (
+                <div className="flex flex-wrap items-center gap-2">
                   <button
-                    onClick={openAddExpense}
-                    className="flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-[#D4AF37]/20 px-4 py-2 text-xs font-bold cursor-pointer text-white shadow-sm"
+                    onClick={generateVentureExpensesPDF}
+                    className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-700 px-3.5 py-2 text-xs font-bold cursor-pointer transition-all duration-150 shadow-sm"
+                    type="button"
                   >
-                    <Plus className="h-4.5 w-4.5" />
-                    <span>{language === 'bn' ? 'নতুন খরচ ভাউচার যোগ করুন' : 'Record New Venture Expense'}</span>
+                    <FileDown className="h-4.5 w-4.5" />
+                    <span>{language === 'bn' ? 'ব্যয় খতিয়ান ডাউনলোড (PDF)' : 'Download Expenses PDF'}</span>
                   </button>
-                )}
+
+                  {isAdmin && (
+                    <button
+                      onClick={openAddExpense}
+                      className="flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-[#D4AF37]/20 px-4 py-2 text-xs font-bold cursor-pointer text-white shadow-sm"
+                    >
+                      <Plus className="h-4.5 w-4.5" />
+                      <span>{language === 'bn' ? 'নতুন খরচ ভাউচার যোগ করুন' : 'Record New Venture Expense'}</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Expenses table list */}
@@ -1707,6 +2631,265 @@ export default function Construction() {
                 </div>
               </div>
 
+              {/* Summary Dashboard Toggleable Section (Daily & Monthly) */}
+              <div className="bg-slate-50/50 rounded-xl border border-slate-200/60 p-4.5 space-y-3.5 print:hidden">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-3">
+                  <div>
+                    <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                      <span>
+                        {summaryMode === 'daily' 
+                          ? (language === 'bn' ? 'তারিখ অনুযায়ী দৈনিক সংক্ষিপ্ত খতিয়ান' : 'Daily Summary Statistics') 
+                          : (language === 'bn' ? 'মাস ভিত্তিক মাসিক সংক্ষিপ্ত খতিয়ান' : 'Monthly Summary Statistics')}
+                      </span>
+                    </h5>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {summaryMode === 'daily'
+                        ? (language === 'bn' ? 'নির্দিষ্ট দিনের মোট পরিশোধিত খরচ, বকেয়া ও অন-সাইট শ্রমিক সংখ্যা দেখতে তারিখ পরিবর্তন করুন।' : 'Choose a ledger date to analyze active daily spend, pending payments, and labor count.')
+                        : (language === 'bn' ? 'নির্দিষ্ট মাসের মোট পরিশোধিত খতিয়ান, বকেয়া বিবরণী ও মোট শ্রমিক কর্মদিবস বিশ্লেষণ করুন।' : 'Select a calendar month to evaluate monthly cumulative expenses, pending status, and worker metrics.')}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Mode Toggle Switch */}
+                    <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100/80 p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setSummaryMode('daily')}
+                        className={`rounded-md px-2.5 py-1 text-[10px] font-extrabold transition-all cursor-pointer ${
+                          summaryMode === 'daily' 
+                            ? 'bg-white text-emerald-900 shadow-sm' 
+                            : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                      >
+                        {language === 'bn' ? 'দৈনিক' : 'Daily'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSummaryMode('monthly')}
+                        className={`rounded-md px-2.5 py-1 text-[10px] font-extrabold transition-all cursor-pointer ${
+                          summaryMode === 'monthly' 
+                            ? 'bg-white text-emerald-900 shadow-sm' 
+                            : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                      >
+                        {language === 'bn' ? 'মাসিক' : 'Monthly'}
+                      </button>
+                    </div>
+
+                    {/* Date/Month pickers */}
+                    <div className="flex items-center gap-1.5 min-w-[170px]">
+                      {summaryMode === 'daily' ? (
+                        <>
+                          <span className="text-[10px] font-bold text-slate-600 whitespace-nowrap">
+                            {language === 'bn' ? 'তারিখ:' : 'Date:'}
+                          </span>
+                          <input
+                            type="date"
+                            value={selectedLedgerDate}
+                            onChange={(e) => setSelectedLedgerDate(e.target.value)}
+                            className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-800 outline-none focus:border-emerald-600 shadow-sm font-sans"
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-[10px] font-bold text-slate-600 whitespace-nowrap">
+                            {language === 'bn' ? 'মাস নির্বাচন:' : 'Month:'}
+                          </span>
+                          <input
+                            type="month"
+                            value={selectedLedgerMonth}
+                            onChange={(e) => setSelectedLedgerMonth(e.target.value)}
+                            className="w-full rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-bold text-slate-800 outline-none focus:border-emerald-600 shadow-sm font-sans"
+                          />
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {summaryMode === 'daily' ? (() => {
+                    const dailyEntries = (activePhase.dailyLedger || []).filter(item => item.date === selectedLedgerDate);
+                    const spendTotal = dailyEntries
+                      .filter(item => !item.status || item.status === 'Paid')
+                      .reduce((sum, item) => sum + item.amount, 0);
+                    const pendingTotal = dailyEntries
+                      .filter(item => item.status === 'Pending')
+                      .reduce((sum, item) => sum + item.amount, 0);
+                    const laborSum = dailyEntries
+                      .filter(item => item.type === 'Labor')
+                      .reduce((sum, item) => {
+                        if (item.laborCount !== undefined && item.laborCount > 0) {
+                          return sum + item.laborCount;
+                        }
+                        if (item.qty) {
+                          const match = item.qty.match(/\d+/);
+                          if (match) {
+                            const parsed = parseInt(match[0], 10);
+                            if (!isNaN(parsed)) return sum + parsed;
+                          }
+                        }
+                        return sum;
+                      }, 0);
+
+                    return (
+                      <>
+                        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100/50 flex items-center justify-between gap-4 shadow-sm hover:shadow transition-all duration-200">
+                          <div>
+                            <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider block">
+                              {language === 'bn' ? 'দৈনিক মোট খরচ' : 'Total Daily Spend'}
+                            </span>
+                            <div className="flex items-baseline gap-1 mt-1">
+                              <span className="text-lg font-extrabold text-emerald-950 font-sans">{formatBDT(spendTotal)}</span>
+                            </div>
+                            <span className="text-[9px] text-slate-500 font-mono italic block mt-0.5">
+                              {language === 'bn' ? `${selectedLedgerDate} তারিখে পরিশোধিত` : `Paid out on ${selectedLedgerDate}`}
+                            </span>
+                          </div>
+                          <div className="text-emerald-600 bg-emerald-100/80 p-2.5 rounded-lg shrink-0">
+                            <Coins className="h-5 w-5" />
+                          </div>
+                        </div>
+
+                        {/* Pending Payments card */}
+                        <div className="p-4 rounded-xl bg-amber-50 border border-amber-100/50 flex items-center justify-between gap-4 shadow-sm hover:shadow transition-all duration-200">
+                          <div>
+                            <span className="text-[10px] text-amber-700 font-bold uppercase tracking-wider block">
+                              {language === 'bn' ? 'বকেয়া পরিশোধের পরিমাণ' : 'Pending Payments'}
+                            </span>
+                            <div className="flex items-baseline gap-1 mt-1">
+                              <span className="text-lg font-extrabold text-amber-950 font-sans">{formatBDT(pendingTotal)}</span>
+                            </div>
+                            <span className="text-[9px] text-slate-500 font-mono italic block mt-0.5">
+                              {language === 'bn' ? `${selectedLedgerDate} তারিখে বকেয়া বিল` : `Due/Unpaid on ${selectedLedgerDate}`}
+                            </span>
+                          </div>
+                          <div className="text-amber-600 bg-amber-100/80 p-2.5 rounded-lg shrink-0">
+                            <Clock className="h-5 w-5" />
+                          </div>
+                        </div>
+
+                        {/* Labor Count card */}
+                        <div className="p-4 rounded-xl bg-blue-50 border border-blue-100/50 flex items-center justify-between gap-4 shadow-sm hover:shadow transition-all duration-200">
+                          <div>
+                            <span className="text-[10px] text-blue-700 font-bold uppercase tracking-wider block">
+                              {language === 'bn' ? 'দৈনিক শ্রমিক সংখ্যা' : 'Labor Count'}
+                            </span>
+                            <div className="flex items-baseline gap-1 mt-1">
+                              <span className="text-lg font-extrabold text-blue-950 font-sans">
+                                {laborSum} <span className="text-xs font-normal text-slate-500">{language === 'bn' ? 'জন' : 'worker(s)'}</span>
+                              </span>
+                            </div>
+                            <span className="text-[9px] text-slate-500 font-mono italic block mt-0.5">
+                              {language === 'bn' ? `${selectedLedgerDate} তারিখে সাইটে উপস্থিত` : `Active laborers on ${selectedLedgerDate}`}
+                            </span>
+                          </div>
+                          <div className="text-blue-600 bg-blue-100/80 p-2.5 rounded-lg shrink-0">
+                            <Users className="h-5 w-5" />
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })() : (() => {
+                    const monthlyEntries = (activePhase.dailyLedger || []).filter(item => 
+                      item.date && item.date.startsWith(selectedLedgerMonth)
+                    );
+                    const spendTotalM = monthlyEntries
+                      .filter(item => !item.status || item.status === 'Paid')
+                      .reduce((sum, item) => sum + item.amount, 0);
+                    const pendingTotalM = monthlyEntries
+                      .filter(item => item.status === 'Pending')
+                      .reduce((sum, item) => sum + item.amount, 0);
+                    const laborSumM = monthlyEntries
+                      .filter(item => item.type === 'Labor')
+                      .reduce((sum, item) => {
+                        if (item.laborCount !== undefined && item.laborCount > 0) {
+                          return sum + item.laborCount;
+                        }
+                        if (item.qty) {
+                          const match = item.qty.match(/\d+/);
+                          if (match) {
+                            const parsed = parseInt(match[0], 10);
+                            if (!isNaN(parsed)) return sum + parsed;
+                          }
+                        }
+                        return sum;
+                      }, 0);
+
+                    // Helper to get beautiful month name
+                    const monthDisplay = () => {
+                      try {
+                        const [year, month] = selectedLedgerMonth.split('-');
+                        const dateObj = new Date(parseInt(year), parseInt(month) - 1, 1);
+                        return dateObj.toLocaleDateString(language === 'bn' ? 'bn-BD' : 'en-US', { month: 'long', year: 'numeric' });
+                      } catch {
+                        return selectedLedgerMonth;
+                      }
+                    };
+
+                    return (
+                      <>
+                        <div className="p-4 rounded-xl bg-teal-50 border border-teal-100/50 flex items-center justify-between gap-4 shadow-sm hover:shadow transition-all duration-200">
+                          <div>
+                            <span className="text-[10px] text-teal-700 font-bold uppercase tracking-wider block">
+                              {language === 'bn' ? 'মাসিক মোট খরচ' : 'Total Monthly Spend'}
+                            </span>
+                            <div className="flex items-baseline gap-1 mt-1">
+                              <span className="text-lg font-extrabold text-teal-950 font-sans">{formatBDT(spendTotalM)}</span>
+                            </div>
+                            <span className="text-[9px] text-slate-500 font-mono italic block mt-0.5">
+                              {language === 'bn' ? `${monthDisplay()} গুদামে পরিশোধিত` : `Paid in ${monthDisplay()}`}
+                            </span>
+                          </div>
+                          <div className="text-teal-600 bg-teal-100/80 p-2.5 rounded-lg shrink-0">
+                            <Coins className="h-5 w-5" />
+                          </div>
+                        </div>
+
+                        {/* Pending Payments card */}
+                        <div className="p-4 rounded-xl bg-orange-50 border border-orange-100/50 flex items-center justify-between gap-4 shadow-sm hover:shadow transition-all duration-200">
+                          <div>
+                            <span className="text-[10px] text-orange-700 font-bold uppercase tracking-wider block">
+                              {language === 'bn' ? 'মাসিক বকেয়া পরিমাণ' : 'Monthly Pending Payments'}
+                            </span>
+                            <div className="flex items-baseline gap-1 mt-1">
+                              <span className="text-lg font-extrabold text-orange-950 font-sans">{formatBDT(pendingTotalM)}</span>
+                            </div>
+                            <span className="text-[9px] text-slate-500 font-mono italic block mt-0.5">
+                              {language === 'bn' ? `${monthDisplay()} মাসের মোট বকেয়া` : `Pending bills for ${monthDisplay()}`}
+                            </span>
+                          </div>
+                          <div className="text-orange-600 bg-orange-100/80 p-2.5 rounded-lg shrink-0">
+                            <Clock className="h-5 w-5" />
+                          </div>
+                        </div>
+
+                        {/* Labor cumulative attendance card */}
+                        <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-100/50 flex items-center justify-between gap-4 shadow-sm hover:shadow transition-all duration-200">
+                          <div>
+                            <span className="text-[10px] text-indigo-700 font-bold uppercase tracking-wider block">
+                              {language === 'bn' ? 'মাসিক লেবার হাজিরা' : 'Monthly Labor Strength'}
+                            </span>
+                            <div className="flex items-baseline gap-1 mt-1">
+                              <span className="text-lg font-extrabold text-indigo-950 font-sans">
+                                {laborSumM} <span className="text-xs font-normal text-slate-500">{language === 'bn' ? 'ম্যান-ডে' : 'man-days'}</span>
+                              </span>
+                            </div>
+                            <span className="text-[9px] text-slate-500 font-mono italic block mt-0.5">
+                              {language === 'bn' ? `${monthDisplay()}-এ সর্বমোট দৈনিক কর্মী` : `Cumulative on-site workers in ${monthDisplay()}`}
+                            </span>
+                          </div>
+                          <div className="text-indigo-600 bg-indigo-100/80 p-2.5 rounded-lg shrink-0">
+                            <Users className="h-5 w-5" />
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+
               {/* Controls */}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
                 {/* Search */}
@@ -1750,14 +2933,25 @@ export default function Construction() {
                     </button>
                   </div>
 
-                  <button
-                    onClick={generateDailyLedgerPDF}
-                    className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-700 px-4 py-2 text-xs font-bold cursor-pointer transition-all duration-150 shadow-sm"
-                    type="button"
-                  >
-                    <FileDown className="h-4.5 w-4.5" />
-                    <span>{language === 'bn' ? 'পিডিএফ রিপোর্ট ডাউনলোড' : 'Download Ledger PDF'}</span>
-                  </button>
+                  {summaryMode === 'monthly' ? (
+                    <button
+                      onClick={generateMonthlyLedgerPDF}
+                      className="flex items-center gap-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white border border-teal-700 px-4 py-2 text-xs font-bold cursor-pointer transition-all duration-150 shadow-sm"
+                      type="button"
+                    >
+                      <FileDown className="h-4.5 w-4.5" />
+                      <span>{language === 'bn' ? 'মাসিক রিপোর্ট ডাউনলোড (PDF)' : 'Download Monthly PDF'}</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={generateDailyLedgerPDF}
+                      className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-700 px-4 py-2 text-xs font-bold cursor-pointer transition-all duration-150 shadow-sm"
+                      type="button"
+                    >
+                      <FileDown className="h-4.5 w-4.5" />
+                      <span>{language === 'bn' ? 'পিডিএফ রিপোর্ট ডাউনলোড' : 'Download Ledger PDF'}</span>
+                    </button>
+                  )}
 
                   {isAdmin && (
                     <button
@@ -1814,24 +3008,42 @@ export default function Construction() {
                         <tr key={dl.id} className="hover:bg-slate-50/50">
                           <td className="py-3 px-4 text-slate-600 font-bold whitespace-nowrap font-sans">{dl.date}</td>
                           <td className="py-3 px-4 whitespace-nowrap">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              dl.type === 'Labor' 
-                                ? 'bg-blue-100 text-blue-800 border border-blue-200' 
-                                : 'bg-purple-100 text-purple-800 border border-purple-200'
-                            }`}>
-                              {dl.type === 'Labor' 
-                                ? (language === 'bn' ? 'লেবার মজুরি' : 'Labor Cost') 
-                                : (language === 'bn' ? 'মালপত্র ক্রয়' : 'Material')}
-                            </span>
+                            <div className="flex flex-col gap-1 items-start">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                dl.type === 'Labor' 
+                                  ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                                  : 'bg-purple-100 text-purple-800 border border-purple-200'
+                              }`}>
+                                {dl.type === 'Labor' 
+                                  ? (language === 'bn' ? 'লেবার মজুরি' : 'Labor Cost') 
+                                  : (language === 'bn' ? 'মালপত্র ক্রয়' : 'Material')}
+                              </span>
+                              
+                              {/* Status Badge */}
+                              <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                                dl.status === 'Pending'
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                  : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              }`}>
+                                {dl.status === 'Pending'
+                                  ? (language === 'bn' ? 'বকেয়া' : 'Pending')
+                                  : (language === 'bn' ? 'পরিশোধিত' : 'Paid')}
+                              </span>
+                            </div>
                           </td>
                           <td className="py-3 px-4">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex flex-wrap items-center gap-1.5">
                               <h5 className="font-extrabold text-slate-900 leading-tight">{dl.title}</h5>
                               {dl.voucherNo && (
                                 <span className="font-mono text-[9px] bg-slate-100 px-1.5 py-0.2 rounded text-slate-500 font-bold">
                                   #{dl.voucherNo}
                                 </span>
                               )}
+                              {dl.type === 'Labor' && dl.laborCount ? (
+                                <span className="font-sans text-[9.5px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200/50 font-bold inline-flex items-center gap-0.5">
+                                  👷 {dl.laborCount} {language === 'bn' ? 'শ্রমিক' : 'Labor(s)'}
+                                </span>
+                              ) : null}
                             </div>
                             {dl.notes && <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 italic">{dl.notes}</p>}
                           </td>
@@ -2470,6 +3682,42 @@ export default function Construction() {
                     </span>
                   )}
                 </div>
+
+                {/* Payment Status */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {language === 'bn' ? 'পরিশোধের অবস্থা' : 'Payment Status'}
+                  </label>
+                  <select
+                    value={dlStatus}
+                    onChange={(e) => setDlStatus(e.target.value as 'Paid' | 'Pending')}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-emerald-600 shadow-sm"
+                  >
+                    <option value="Paid">{language === 'bn' ? 'পরিশোধিত (Paid)' : 'Paid'}</option>
+                    <option value="Pending">{language === 'bn' ? 'বকেয়া (Pending)' : 'Pending'}</option>
+                  </select>
+                </div>
+
+                {/* Labor Count (conditional) */}
+                {dlType === 'Labor' ? (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      {language === 'bn' ? 'শ্রমিক সংখ্যা (ঐচ্ছিক)' : 'Labor Count (Optional)'}
+                    </label>
+                    <input
+                      type="number"
+                      value={dlLaborCount || ''}
+                      onChange={(e) => setDlLaborCount(parseInt(e.target.value) || 0)}
+                      placeholder={language === 'bn' ? "যেমন: দিনমজুরের সংখ্যা" : "e.g. 5, 12, etc."}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-emerald-600 shadow-sm"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    {/* Placeholder to keep alignment */}
+                    <div className="h-full"></div>
+                  </div>
+                )}
 
                 {/* Notes */}
                 <div className="sm:col-span-2">

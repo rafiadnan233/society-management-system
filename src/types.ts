@@ -231,6 +231,8 @@ export interface ConstructionDailyLedgerEntry {
   supplierOrRecipient: string;
   voucherNo?: string;
   notes?: string;
+  status?: 'Paid' | 'Pending';
+  laborCount?: number;
 }
 
 export interface ConstructionPhase {
