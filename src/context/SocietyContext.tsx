@@ -32,7 +32,8 @@ import {
   UserAccount,
   ConstructionPhase,
   ConstructionExpense,
-  ConstructionDeposit
+  ConstructionDeposit,
+  ConstructionDailyLedgerEntry
 } from '../types';
 
 interface SocietyContextType {
@@ -66,6 +67,9 @@ interface SocietyContextType {
   addConstructionDeposit: (phaseId: string, deposit: Omit<ConstructionDeposit, 'id'>) => void;
   updateConstructionDeposit: (phaseId: string, deposit: ConstructionDeposit) => void;
   deleteConstructionDeposit: (phaseId: string, depositId: string) => void;
+  addConstructionDailyLedger: (phaseId: string, entry: Omit<ConstructionDailyLedgerEntry, 'id'>) => void;
+  updateConstructionDailyLedger: (phaseId: string, entry: ConstructionDailyLedgerEntry) => void;
+  deleteConstructionDailyLedger: (phaseId: string, entryId: string) => void;
 
   // Actions
   login: (email: string, role: string, password?: string) => Promise<boolean>;
@@ -1691,6 +1695,34 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     logActivity('CONSTRUCTION_DEL_DEP', `Deleted deposit ID ${depositId} from phase ${phaseId}`);
   };
 
+  const addConstructionDailyLedger = (phaseId: string, entry: Omit<ConstructionDailyLedgerEntry, 'id'>) => {
+    const newEntry = { ...entry, id: `con_dl_${Date.now()}` };
+    const updated = constructionPhases.map(p => 
+      p.id === phaseId ? { ...p, dailyLedger: [...(p.dailyLedger || []), newEntry] } : p
+    );
+    setConstructionPhases(updated);
+    saveToStorage('constructionPhases', updated);
+    logActivity('CONSTRUCTION_ADD_DL', `Recorded daily ledger entry [${entry.title}] - ${entry.amount} BDT to phase ${phaseId}`);
+  };
+
+  const updateConstructionDailyLedger = (phaseId: string, entry: ConstructionDailyLedgerEntry) => {
+    const updated = constructionPhases.map(p => 
+      p.id === phaseId ? { ...p, dailyLedger: (p.dailyLedger || []).map(dl => dl.id === entry.id ? entry : dl) } : p
+    );
+    setConstructionPhases(updated);
+    saveToStorage('constructionPhases', updated);
+    logActivity('CONSTRUCTION_UPD_DL', `Updated daily ledger entry [${entry.title}] in phase ${phaseId}`);
+  };
+
+  const deleteConstructionDailyLedger = (phaseId: string, entryId: string) => {
+    const updated = constructionPhases.map(p => 
+      p.id === phaseId ? { ...p, dailyLedger: (p.dailyLedger || []).filter(dl => dl.id !== entryId) } : p
+    );
+    setConstructionPhases(updated);
+    saveToStorage('constructionPhases', updated);
+    logActivity('CONSTRUCTION_DEL_DL', `Deleted daily ledger entry ID ${entryId} from phase ${phaseId}`);
+  };
+
   // Backup & Restore Engine
   const exportData = (): string => {
     const dump = {
@@ -1880,6 +1912,9 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       addConstructionDeposit,
       updateConstructionDeposit,
       deleteConstructionDeposit,
+      addConstructionDailyLedger,
+      updateConstructionDailyLedger,
+      deleteConstructionDailyLedger,
 
       exportData,
       importData,

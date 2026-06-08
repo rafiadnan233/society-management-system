@@ -7,10 +7,13 @@ import React, { useState } from 'react';
 import { useSociety } from '../context/SocietyContext';
 import { translations } from '../utils/translations';
 import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
+import { sanitizeAllInlineStyles } from '../utils/oklchPatch';
 import { 
   ConstructionPhase, 
   ConstructionExpense, 
-  ConstructionDeposit 
+  ConstructionDeposit,
+  ConstructionDailyLedgerEntry
 } from '../types';
 import { 
   Building2, 
@@ -35,7 +38,10 @@ import {
   Coins, 
   Wrench, 
   ArrowLeftRight,
-  FileDown
+  FileDown,
+  Download,
+  Loader2,
+  FileText
 } from 'lucide-react';
 
 export default function Construction() {
@@ -49,9 +55,13 @@ export default function Construction() {
     addConstructionDeposit, 
     updateConstructionDeposit, 
     deleteConstructionDeposit, 
+    addConstructionDailyLedger,
+    updateConstructionDailyLedger,
+    deleteConstructionDailyLedger,
     flats, 
     language, 
-    currentUser 
+    currentUser,
+    config
   } = useSociety();
 
   const t = translations[language];
@@ -59,21 +69,40 @@ export default function Construction() {
 
   // State Management
   const [selectedPhaseId, setSelectedPhaseId] = useState<string>('piling_basement');
-  const [activeSubTab, setActiveSubTab] = useState<'deposits' | 'expenses'>('deposits');
+  const [activeSubTab, setActiveSubTab] = useState<'deposits' | 'expenses' | 'ledger'>('deposits');
   
   // Filtering & Search
   const [depositSearch, setDepositSearch] = useState('');
   const [depositFilter, setDepositFilter] = useState<'All' | 'Paid' | 'Due'>('All');
   const [expenseSearch, setExpenseSearch] = useState('');
+  const [ledgerSearch, setLedgerSearch] = useState('');
+  const [ledgerTypeFilter, setLedgerTypeFilter] = useState<'All' | 'Labor' | 'Material'>('All');
 
   // Modal State
   const [showSubModal, setShowSubModal] = useState(false);
   const [showDepModal, setShowDepModal] = useState(false);
   const [showExpModal, setShowExpModal] = useState(false);
+  const [showLedgerModal, setShowLedgerModal] = useState(false);
 
   // Editing state
   const [editingDeposit, setEditingDeposit] = useState<ConstructionDeposit | null>(null);
   const [editingExpense, setEditingExpense] = useState<ConstructionExpense | null>(null);
+  const [editingLedger, setEditingLedger] = useState<ConstructionDailyLedgerEntry | null>(null);
+
+  // Active receipt for printing/downloading
+  const [activeReceipt, setActiveReceipt] = useState<ConstructionDeposit | null>(null);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
+  // Daily Ledger Form State
+  const [dlType, setDlType] = useState<'Labor' | 'Material'>('Labor');
+  const [dlTitle, setDlTitle] = useState<string>('');
+  const [dlAmount, setDlAmount] = useState<number>(0);
+  const [dlQty, setDlQty] = useState<string>('');
+  const [dlRate, setDlRate] = useState<number>(0);
+  const [dlSupplierOrRecipient, setDlSupplierOrRecipient] = useState<string>('');
+  const [dlVoucherNo, setDlVoucherNo] = useState<string>('');
+  const [dlNotes, setDlNotes] = useState<string>('');
+  const [dlDate, setDlDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   // Form Fields State
   // Subscription form
@@ -341,6 +370,253 @@ export default function Construction() {
     if (!isAdmin) return;
     if (window.confirm(language === 'bn' ? 'আপনি কি এই ভাউচার বা খরচ মুছে ফেলতে চান?' : 'Are you sure you want to delete this transaction voucher?')) {
       deleteConstructionExpense(selectedPhaseId, expId);
+    }
+  };
+
+  const openAddLedger = () => {
+    setEditingLedger(null);
+    setDlType('Labor');
+    setDlTitle('');
+    setDlAmount(0);
+    setDlQty('');
+    setDlRate(0);
+    setDlSupplierOrRecipient('');
+    setDlVoucherNo('');
+    setDlNotes('');
+    setDlDate(new Date().toISOString().split('T')[0]);
+    setShowLedgerModal(true);
+  };
+
+  const openEditLedger = (dl: ConstructionDailyLedgerEntry) => {
+    setEditingLedger(dl);
+    setDlType(dl.type);
+    setDlTitle(dl.title);
+    setDlAmount(dl.amount);
+    setDlQty(dl.qty || '');
+    setDlRate(dl.rate || 0);
+    setDlSupplierOrRecipient(dl.supplierOrRecipient);
+    setDlVoucherNo(dl.voucherNo || '');
+    setDlNotes(dl.notes || '');
+    setDlDate(dl.date);
+    setShowLedgerModal(true);
+  };
+
+  const handleLedgerSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+    if (!dlTitle || dlAmount < 0) return;
+
+    const dataPayload = {
+      date: dlDate,
+      type: dlType,
+      title: dlTitle,
+      amount: dlAmount,
+      qty: dlQty || undefined,
+      rate: dlRate || undefined,
+      supplierOrRecipient: dlSupplierOrRecipient,
+      voucherNo: dlVoucherNo || undefined,
+      notes: dlNotes || undefined
+    };
+
+    if (editingLedger) {
+      updateConstructionDailyLedger(selectedPhaseId, {
+        id: editingLedger.id,
+        ...dataPayload
+      });
+    } else {
+      addConstructionDailyLedger(selectedPhaseId, dataPayload);
+    }
+    setShowLedgerModal(false);
+  };
+
+  const handleDeleteLedger = (dlId: string) => {
+    if (!isAdmin) return;
+    if (window.confirm(language === 'bn' ? 'আপনি কি এই দৈনিক খতিয়ান এন্ট্রি মুছে ফেলতে চান?' : 'Are you sure you want to delete this daily ledger entry?')) {
+      deleteConstructionDailyLedger(selectedPhaseId, dlId);
+    }
+  };
+
+  const generateDailyLedgerPDF = () => {
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      // Colors
+      const primaryColor = [15, 23, 42]; // Slate 900
+
+      let y = 15;
+
+      const drawHeader = (isSubPage = false) => {
+        doc.setFillColor(15, 23, 42); // Navy theme header bar
+        doc.rect(15, 10, 180, 18, 'F');
+        
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.text("ASTHA TWIN TOWERS OWNERS SOCIETY", 20, 17);
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        const subtitle = `DAILY LABOR COST & PURCHASE LEDGER - ${activePhase?.nameEn?.toUpperCase() || 'PHASE'}`;
+        doc.text(subtitle, 20, 23);
+        
+        doc.setFont('helvetica', 'italic');
+        const rightText = isSubPage ? `Page ${doc.internal.pages.length - 1}` : `Generated: ${new Date().toLocaleDateString()}`;
+        doc.text(rightText, 170, 20, { align: 'right' });
+      };
+
+      const checkNewPage = (needed: number) => {
+        if (y + needed > 275) {
+          doc.addPage();
+          drawHeader(true);
+          y = 35;
+        }
+      };
+
+      // Draw first page header
+      drawHeader();
+      y = 35;
+
+      // Filtered items
+      const list = activePhase?.dailyLedger || [];
+      const filtered = list.filter(item => {
+        const matchesSearch = 
+          (item.title || '').toLowerCase().includes(ledgerSearch.toLowerCase()) ||
+          (item.supplierOrRecipient || '').toLowerCase().includes(ledgerSearch.toLowerCase()) ||
+          (item.voucherNo || '').toLowerCase().includes(ledgerSearch.toLowerCase()) ||
+          (item.notes || '').toLowerCase().includes(ledgerSearch.toLowerCase());
+        
+        const matchesType = ledgerTypeFilter === 'All' || item.type === ledgerTypeFilter;
+        
+        return matchesSearch && matchesType;
+      });
+
+      const totalLabor = filtered.filter(item => item.type === 'Labor').reduce((sum, item) => sum + item.amount, 0);
+      const totalMaterial = filtered.filter(item => item.type === 'Material').reduce((sum, item) => sum + item.amount, 0);
+      const totalSpent = filtered.reduce((sum, item) => sum + item.amount, 0);
+
+      // 1. STATS BOX SUMMARY
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text("1. LEDGER SUMMARIZED REPORT", 15, y);
+      y += 5;
+
+      // Summary boxes
+      doc.setDrawColor(226, 232, 240);
+      doc.setFillColor(248, 250, 252);
+      doc.rect(15, y, 180, 22, 'FD');
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text("TOTAL LABOR COSTS", 20, y + 6);
+      doc.text("TOTAL MATERIAL PURCHASES", 80, y + 6);
+      doc.text("LEDGER GRAND TOTAL", 140, y + 6);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(29, 78, 216); // Blue
+      doc.text(`BDT ${totalLabor.toLocaleString()}`, 20, y + 13);
+      doc.setTextColor(109, 40, 217); // Purple
+      doc.text(`BDT ${totalMaterial.toLocaleString()}`, 80, y + 13);
+      doc.setTextColor(15, 23, 42); // Dark slate
+      doc.text(`BDT ${totalSpent.toLocaleString()}`, 140, y + 13);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(148, 163, 184);
+      doc.text(`Type Filter Status: ${ledgerTypeFilter} | Records Found: ${filtered.length}`, 20, y + 18);
+
+      y += 30;
+
+      // 2. LEDGER LIST OF ENTRIES
+      checkNewPage(15);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`2. CHRONOLOGICAL LOG OF ENTRIES (FILTERED)`, 15, y);
+      y += 5;
+
+      // Draw table headers
+      const colX = [15, 34, 52, 108, 142, 168];
+      
+      doc.setFillColor(15, 23, 42);
+      doc.rect(15, y, 180, 7, 'F');
+      
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(255, 255, 255);
+      doc.text("Date", colX[0] + 2, y + 5);
+      doc.text("Type", colX[1] + 2, y + 5);
+      doc.text("Expense Head / Description", colX[2] + 2, y + 5);
+      doc.text("Paid to / Supplier", colX[3] + 2, y + 5);
+      doc.text("Rate & Qty", colX[4] + 2, y + 5);
+      doc.text("Total", colX[5] + 2, y + 5);
+      
+      y += 7;
+
+      filtered.forEach((dl) => {
+        checkNewPage(10);
+        
+        doc.setFillColor(255, 255, 255);
+        doc.rect(15, y, 180, 8, 'F');
+        doc.setDrawColor(241, 245, 249);
+        doc.line(15, y + 8, 195, y + 8);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(51, 65, 85);
+
+        // Date
+        doc.text(dl.date, colX[0] + 2, y + 5);
+
+        // Type
+        doc.setFont('helvetica', 'bold');
+        doc.text(dl.type.toUpperCase(), colX[1] + 2, y + 5);
+        doc.setFont('helvetica', 'normal');
+
+        // Description / Title
+        const maxDescWidth = 52;
+        let pTitle = dl.title;
+        const titleLines = doc.splitTextToSize(pTitle, maxDescWidth);
+        doc.text(titleLines[0] || '', colX[2] + 2, y + 5);
+
+        // Supplier
+        const supplierLines = doc.splitTextToSize(dl.supplierOrRecipient || '', 32);
+        doc.text(supplierLines[0] || '', colX[3] + 2, y + 5);
+
+        // Rate & Qty
+        const rateQtyText = dl.rate && dl.qty ? `${dl.rate} x ${dl.qty}` : '—';
+        doc.text(rateQtyText, colX[4] + 2, y + 5);
+
+        // Total
+        doc.setFont('helvetica', 'bold');
+        doc.text(dl.amount.toLocaleString(), colX[5] + 2, y + 5);
+        doc.setFont('helvetica', 'normal');
+
+        y += 8;
+      });
+
+      // Signature & Footer
+      checkNewPage(30);
+      y += 10;
+      doc.setDrawColor(203, 213, 225);
+      doc.line(15, y, 65, y);
+      doc.line(145, y, 195, y);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.text("PREPARED BY (ON-SITE CLERK)", 15, y + 4);
+      doc.text("APPROVED BY (TREASURER)", 145, y + 4);
+
+      doc.save(`Daily-Ledger-${activePhase?.id || 'Phase'}-${new Date().toISOString().split('T')[0]}.pdf`);
+
+    } catch (error) {
+      console.error("PDF generation failed:", error);
     }
   };
 
@@ -695,8 +971,48 @@ export default function Construction() {
     }
   };
 
+  const handlePrint = () => {
+    window.focus();
+    window.print();
+  };
+
+  const handleDownloadReceiptPDF = async () => {
+    const element = document.getElementById('printable-construction-receipt');
+    if (!element) return;
+
+    try {
+      setIsGeneratingPDF(true);
+      
+      // Sanitize all inline styles to prevent oklch rendering exceptions
+      sanitizeAllInlineStyles(element);
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        backgroundColor: '#0a0a0a',
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const imgWidth = pdfWidth - 20; // 10mm margin on each side
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
+      pdf.save(`Construction-Receipt-${activeReceipt?.receiptNo || activeReceipt?.id || 'download'}.pdf`);
+    } catch (error) {
+      console.error('Failed to generate PDF', error);
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
   return (
-    <div className="space-y-6 animate-fade-in pb-12">
+    <div className={`space-y-6 animate-fade-in pb-12 ${activeReceipt ? 'print:hidden' : ''}`}>
       
       {/* Title Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1045,7 +1361,7 @@ export default function Construction() {
                 {formatNumber(memberCount)}
               </span>
             </button>
-            <button
+             <button
               onClick={() => setActiveSubTab('expenses')}
               className={`flex items-center gap-2 py-3 px-6 text-sm font-bold border-b-2 transition-all cursor-pointer ${
                 activeSubTab === 'expenses' 
@@ -1057,6 +1373,20 @@ export default function Construction() {
               <span>{language === 'bn' ? 'নির্মাণ ব্যয় ও খরচ ভাউচার' : 'Material & Structural Expenses'}</span>
               <span className="rounded-full bg-slate-100 border px-2 py-0.5 text-[9px] font-bold font-sans">
                 {formatNumber(activePhase.expenses.length)}
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveSubTab('ledger')}
+              className={`flex items-center gap-2 py-3 px-6 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+                activeSubTab === 'ledger' 
+                  ? 'border-emerald-600 text-emerald-800' 
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Building2 className="h-4 w-4" />
+              <span>{language === 'bn' ? 'দৈনিক কাজের খতিয়ান' : 'Daily Labor & Purchase Ledger'}</span>
+              <span className="rounded-full bg-slate-100 border px-2 py-0.5 text-[9px] font-bold font-sans">
+                {formatNumber((activePhase.dailyLedger || []).length)}
               </span>
             </button>
           </div>
@@ -1168,8 +1498,15 @@ export default function Construction() {
                                       <span className="font-mono text-[9px] font-bold">
                                         {formatBDT(dep.amountPaid)} ({dep.payMethod})
                                       </span>
+                                      <button 
+                                        onClick={() => setActiveReceipt(dep)}
+                                        className="text-emerald-600 hover:text-emerald-800 cursor-pointer flex items-center justify-center transition-transform hover:scale-110"
+                                        title={language === 'bn' ? 'মানি রশিদ প্রিন্ট' : 'Print Money Receipt'}
+                                      >
+                                        <Printer className="h-3 w-3" />
+                                      </button>
                                       {isAdmin && (
-                                        <div className="flex items-center gap-1">
+                                        <div className="flex items-center gap-1 border-l border-slate-300 pl-1">
                                           <button 
                                             onClick={() => openEditDeposit(dep)}
                                             className="text-indigo-600 hover:text-indigo-800 cursor-pointer"
@@ -1222,7 +1559,7 @@ export default function Construction() {
               </div>
 
             </div>
-          ) : (
+          ) : activeSubTab === 'expenses' ? (
             // Material Expenditures Tab
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden p-5 space-y-4">
               
@@ -1323,6 +1660,249 @@ export default function Construction() {
                       </tr>
                     </tfoot>
                   )}
+                </table>
+              </div>
+
+            </div>
+          ) : (
+            // DAILY LEDGER OPTION PANEL
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden p-5 space-y-4">
+              
+              {/* Daily Ledger stats summary */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-slate-100 pb-5">
+                <div className="p-4 rounded-xl bg-blue-50/55 border border-blue-100/40">
+                  <span className="text-[10px] text-blue-600 font-bold uppercase tracking-wider block">
+                    {language === 'bn' ? 'মোট লেবার খরচ' : 'Total Labor Costs'}
+                  </span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-xl font-extrabold text-blue-900">{formatBDT((activePhase.dailyLedger || []).filter(item => item.type === 'Labor').reduce((sum, item) => sum + item.amount, 0))}</span>
+                  </div>
+                  <span className="text-[9px] text-slate-500 font-mono italic block mt-0.5">
+                    {language === 'bn' ? 'দৈনিক মজুরি, মিস্ত্রি ও সুপারভাইজার ফি' : 'Day wages, mason payouts, supervisor payouts'}
+                  </span>
+                </div>
+                
+                <div className="p-4 rounded-xl bg-purple-50/55 border border-purple-100/40">
+                  <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider block">
+                    {language === 'bn' ? 'মোট ম্যাটেরিয়াল ক্রয়' : 'Total Material Purchases'}
+                  </span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-xl font-extrabold text-purple-900">{formatBDT((activePhase.dailyLedger || []).filter(item => item.type === 'Material').reduce((sum, item) => sum + item.amount, 0))}</span>
+                  </div>
+                  <span className="text-[9px] text-slate-500 font-mono italic block mt-0.5">
+                    {language === 'bn' ? 'কংক্রিট, রড, বালু, সিমেন্ট ও সাইট সরঞ্জাম' : 'Sand, gravel, cement, local hardware purchases'}
+                  </span>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
+                    {language === 'bn' ? 'দৈনিক খতিয়ান গ্র্যান্ড টোটাল' : 'Grand Total Daily Ledger'}
+                  </span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-xl font-extrabold text-slate-900">{formatBDT((activePhase.dailyLedger || []).reduce((sum, item) => sum + item.amount, 0))}</span>
+                  </div>
+                  <span className="text-[9px] text-slate-500 font-mono italic block mt-0.5">
+                    {language === 'bn' ? 'চলতি ধাপের মোট অন-সাইট দৈনন্দিন খরচ' : 'Cumulative on-site local expense records'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Controls */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
+                {/* Search */}
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute top-2.5 left-3 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder={language === 'bn' ? 'বিবরণ, ভাউচার নাম্বার বা প্রাপক অনুসন্ধান...' : 'Search details, voucher, or recipient...'}
+                    value={ledgerSearch}
+                    onChange={(e) => setLedgerSearch(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-xs text-slate-800 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600/30 font-sans shadow-sm"
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Type Filter */}
+                  <div className="flex border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+                    <button
+                      onClick={() => setLedgerTypeFilter('All')}
+                      className={`px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                        ledgerTypeFilter === 'All' ? 'bg-slate-100 text-slate-800' : 'bg-white text-slate-500'
+                      }`}
+                    >
+                      {language === 'bn' ? 'সব' : 'All'}
+                    </button>
+                    <button
+                      onClick={() => setLedgerTypeFilter('Labor')}
+                      className={`px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                        ledgerTypeFilter === 'Labor' ? 'bg-blue-50 text-blue-800' : 'bg-white text-slate-500'
+                      }`}
+                    >
+                      {language === 'bn' ? 'লেবার খরচ' : 'Labor'}
+                    </button>
+                    <button
+                      onClick={() => setLedgerTypeFilter('Material')}
+                      className={`px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                        ledgerTypeFilter === 'Material' ? 'bg-purple-50 text-purple-800' : 'bg-white text-slate-500'
+                      }`}
+                    >
+                      {language === 'bn' ? 'মালপত্র' : 'Material'}
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={generateDailyLedgerPDF}
+                    className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-700 px-4 py-2 text-xs font-bold cursor-pointer transition-all duration-150 shadow-sm"
+                    type="button"
+                  >
+                    <FileDown className="h-4.5 w-4.5" />
+                    <span>{language === 'bn' ? 'পিডিএফ রিপোর্ট ডাউনলোড' : 'Download Ledger PDF'}</span>
+                  </button>
+
+                  {isAdmin && (
+                    <button
+                      onClick={openAddLedger}
+                      className="flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-[#D4AF37]/20 px-4 py-2 text-xs font-bold cursor-pointer text-white shadow-sm"
+                    >
+                      <Plus className="h-4.5 w-4.5" />
+                      <span>{language === 'bn' ? 'নতুন দৈনিক এন্ট্রি যোগ করুন' : 'Record Daily Cost/Purchase'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-700 uppercase tracking-widest font-mono text-[10px] font-bold border-b border-slate-100">
+                      <th className="py-3 px-4">{language === 'bn' ? 'তারিখ' : 'Date'}</th>
+                      <th className="py-3 px-4">{language === 'bn' ? 'প্রকার' : 'Type'}</th>
+                      <th className="py-3 px-4">{language === 'bn' ? 'খরচের বিবরণ' : 'Expense / Purchase Head'}</th>
+                      <th className="py-3 px-4">{language === 'bn' ? 'মজুর/সরবরাহকারী' : 'Paid to / Supplier'}</th>
+                      <th className="py-3 px-4 text-center">{language === 'bn' ? 'দর ও পরিমাণ' : 'Unit Rate & Qty'}</th>
+                      <th className="py-3 px-4 text-right">{language === 'bn' ? 'সর্বমোট পরিমাণ' : 'Total Amount'}</th>
+                      <th className="py-3 px-4 text-center print:hidden">{language === 'bn' ? 'অ্যাকশন' : 'Actions'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(() => {
+                      const list = activePhase.dailyLedger || [];
+                      const filtered = list.filter(item => {
+                        const matchesSearch = 
+                          (item.title || '').toLowerCase().includes(ledgerSearch.toLowerCase()) ||
+                          (item.supplierOrRecipient || '').toLowerCase().includes(ledgerSearch.toLowerCase()) ||
+                          (item.voucherNo || '').toLowerCase().includes(ledgerSearch.toLowerCase()) ||
+                          (item.notes || '').toLowerCase().includes(ledgerSearch.toLowerCase());
+                        
+                        const matchesType = ledgerTypeFilter === 'All' || item.type === ledgerTypeFilter;
+                        
+                        return matchesSearch && matchesType;
+                      });
+
+                      if (filtered.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={7} className="py-8 text-center text-slate-500 font-medium">
+                              {language === 'bn' ? 'কোনো দৈনিক খতিয়ান এন্ট্রি খুঁজে পাওয়া যায়নি।' : 'No on-site daily labor or purchase entries recorded matching current criteria.'}
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return filtered.map((dl) => (
+                        <tr key={dl.id} className="hover:bg-slate-50/50">
+                          <td className="py-3 px-4 text-slate-600 font-bold whitespace-nowrap font-sans">{dl.date}</td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              dl.type === 'Labor' 
+                                ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                                : 'bg-purple-100 text-purple-800 border border-purple-200'
+                            }`}>
+                              {dl.type === 'Labor' 
+                                ? (language === 'bn' ? 'লেবার মজুরি' : 'Labor Cost') 
+                                : (language === 'bn' ? 'মালপত্র ক্রয়' : 'Material')}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-1.5">
+                              <h5 className="font-extrabold text-slate-900 leading-tight">{dl.title}</h5>
+                              {dl.voucherNo && (
+                                <span className="font-mono text-[9px] bg-slate-100 px-1.5 py-0.2 rounded text-slate-500 font-bold">
+                                  #{dl.voucherNo}
+                                </span>
+                              )}
+                            </div>
+                            {dl.notes && <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 italic">{dl.notes}</p>}
+                          </td>
+                          <td className="py-3 px-4 text-slate-700 font-medium">{dl.supplierOrRecipient}</td>
+                          <td className="py-3 px-4 text-center font-sans">
+                            {dl.rate && dl.qty ? (
+                              <div className="flex flex-col items-center justify-center">
+                                <span className="font-bold text-slate-800">{formatBDT(dl.rate)}</span>
+                                <span className="text-[9px] text-slate-500 font-mono">× {dl.qty}</span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 font-mono">—</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-right font-extrabold font-sans text-slate-900">
+                            {formatBDT(dl.amount)}
+                          </td>
+                          <td className="py-3 px-4 text-center print:hidden">
+                            {isAdmin ? (
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => openEditLedger(dl)}
+                                  className="rounded border border-slate-200 bg-white hover:bg-slate-50 text-indigo-600 p-1 hover:border-slate-350 cursor-pointer"
+                                  title="Edit Ledger Entry"
+                                >
+                                  <Edit className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteLedger(dl.id)}
+                                  className="rounded border border-slate-200 bg-white hover:bg-slate-50 text-rose-600 p-1 hover:border-slate-350 cursor-pointer"
+                                  title="Delete Ledger Entry"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 font-mono">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                  {(() => {
+                    const list = activePhase.dailyLedger || [];
+                    const filtered = list.filter(item => {
+                      const matchesSearch = 
+                        (item.title || '').toLowerCase().includes(ledgerSearch.toLowerCase()) ||
+                        (item.supplierOrRecipient || '').toLowerCase().includes(ledgerSearch.toLowerCase()) ||
+                        (item.voucherNo || '').toLowerCase().includes(ledgerSearch.toLowerCase()) ||
+                        (item.notes || '').toLowerCase().includes(ledgerSearch.toLowerCase());
+                      const matchesType = ledgerTypeFilter === 'All' || item.type === ledgerTypeFilter;
+                      return matchesSearch && matchesType;
+                    });
+                    if (filtered.length > 0) {
+                      return (
+                        <tfoot className="bg-slate-50 border-t border-slate-200">
+                          <tr className="font-bold text-slate-800">
+                            <td className="py-3 px-4" colSpan={4}></td>
+                            <td className="py-3 px-4 text-left font-mono text-[10px] uppercase tracking-wider text-slate-500 font-bold">
+                              {language === 'bn' ? 'মোট পরিমাণ:' : 'Filtered Sum:'}
+                            </td>
+                            <td className="py-3 px-4 text-right text-slate-900 text-sm font-extrabold whitespace-nowrap font-sans">
+                              {formatBDT(filtered.reduce((sum, e) => sum + e.amount, 0))}
+                            </td>
+                            <td className="py-3 px-4 text-center print:hidden"></td>
+                          </tr>
+                        </tfoot>
+                      );
+                    }
+                  })()}
                 </table>
               </div>
 
@@ -1709,6 +2289,370 @@ export default function Construction() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Modal: Record/Register Daily Ledger Entry */}
+      {showLedgerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in print:hidden">
+          <div className="w-full max-w-lg rounded-xl bg-white border border-slate-200 shadow-xl overflow-hidden animate-scale-up">
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-5 py-4">
+              <h4 className="text-sm font-bold text-slate-800">
+                {editingLedger 
+                  ? (language === 'bn' ? 'দৈনিক কাজের খতিয়ান সংশোধন' : 'Edit Daily Ledger Entry') 
+                  : (language === 'bn' ? 'নতুন দৈনিক কাজের হিসাব রেকর্ড করুন' : 'Record Daily Cost/Purchase')}
+              </h4>
+              <button 
+                onClick={() => setShowLedgerModal(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleLedgerSubmit} className="p-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                
+                {/* Entry Type */}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 mb-2">
+                    {language === 'bn' ? 'হিসাবের ধরণ' : 'Ledger Category Type'}
+                  </label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setDlType('Labor')}
+                      className={`py-2 px-4 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                        dlType === 'Labor' 
+                          ? 'bg-blue-50 border-blue-600 text-blue-800 ring-2 ring-blue-600/20' 
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="h-2 w-2 rounded-full bg-blue-600"></span>
+                      <span>{language === 'bn' ? 'লেবার খরচ' : 'Labor & Wages'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDlType('Material')}
+                      className={`py-2 px-4 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                        dlType === 'Material' 
+                          ? 'bg-purple-50 border-purple-600 text-purple-800 ring-2 ring-purple-600/20' 
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="h-2 w-2 rounded-full bg-purple-600"></span>
+                      <span>{language === 'bn' ? 'মালপত্র ক্রয়' : 'Material Purchases'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Date */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {language === 'bn' ? 'তারিখ' : 'Date'}
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={dlDate}
+                    onChange={(e) => setDlDate(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-emerald-600 shadow-sm"
+                  />
+                </div>
+
+                {/* Voucher number (optional) */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {language === 'bn' ? 'ভাউচার / মেমো নং (ঐচ্ছিক)' : 'Voucher / Memo No (Optional)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={dlVoucherNo}
+                    onChange={(e) => setDlVoucherNo(e.target.value)}
+                    placeholder="যেমন: MEMO-112"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-emerald-600 shadow-sm"
+                  />
+                </div>
+
+                {/* Title */}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {language === 'bn' ? 'খরচের বিবরণ' : 'Description / Entry Title'}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={dlTitle}
+                    onChange={(e) => setDlTitle(e.target.value)}
+                    placeholder={dlType === 'Labor' ? "যেমন: দিনমজুর ও রাজমিস্ত্রীর দৈনিক হাজিরা" : "যেমন: ৩০০০ পিস লাল ইট ক্রয়"}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-emerald-600 shadow-sm"
+                  />
+                </div>
+
+                {/* Supplier or Paid to */}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {dlType === 'Labor' 
+                      ? (language === 'bn' ? 'কাকে প্রদান করা হয়েছে (মিস্ত্রি / ঠিকাদার)' : 'Paid to (Contractor / Mason)')
+                      : (language === 'bn' ? 'সরবরাহকারী / প্রতিষ্ঠানের নাম' : 'Supplier Business Name / Dealer')}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={dlSupplierOrRecipient}
+                    onChange={(e) => setDlSupplierOrRecipient(e.target.value)}
+                    placeholder={dlType === 'Labor' ? "যেমন: হেলাল মিস্ত্রী (প্রধান রাজমিস্ত্রী)" : "যেমন: মেসার্স ভাই ভাই ব্রিকস"}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-emerald-600 shadow-sm"
+                  />
+                </div>
+
+                {/* Unit Rate */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {language === 'bn' ? 'একক দর (৳) (ঐচ্ছিক)' : 'Unit Rate (BDT) (Optional)'}
+                  </label>
+                  <input
+                    type="number"
+                    value={dlRate || ''}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      setDlRate(val);
+                      const parsedQty = parseFloat(dlQty);
+                      if (!isNaN(parsedQty) && val > 0) {
+                        setDlAmount(parsedQty * val);
+                      }
+                    }}
+                    placeholder="যেমন: ৮৫০"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-emerald-600 shadow-sm"
+                  />
+                </div>
+
+                {/* Quantity */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {language === 'bn' ? 'পরিমাণ (ঐচ্ছিক)' : 'Quantity / Vol (Optional)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={dlQty}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setDlQty(val);
+                      const parsedQty = parseFloat(val);
+                      if (!isNaN(parsedQty) && dlRate > 0) {
+                        setDlAmount(parsedQty * dlRate);
+                      }
+                    }}
+                    placeholder={dlType === 'Labor' ? "যেমন: ১২ জন" : "যেমন: ১০০ বস্তা"}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-emerald-600 shadow-sm"
+                  />
+                </div>
+
+                {/* Amount */}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {language === 'bn' ? 'মোট খরচের পরিমাণ (৳)' : 'Total Cost Amount (BDT)'}
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={dlAmount || ''}
+                    onChange={(e) => setDlAmount(parseFloat(e.target.value) || 0)}
+                    placeholder="যেমন: ১০,২০০"
+                    className="w-full rounded-lg border border-slate-300 bg-emerald-50/20 px-3 py-2.5 text-xs font-extrabold text-emerald-950 outline-none focus:border-emerald-600 shadow-sm"
+                  />
+                  {dlRate > 0 && parseFloat(dlQty) > 0 && (
+                    <span className="text-[10px] text-emerald-600 font-bold block mt-1 font-sans">
+                      {language === 'bn' 
+                        ? `হিসাব: ${parseFloat(dlQty)} × ${dlRate} = ৳ ${(parseFloat(dlQty) * dlRate).toLocaleString()}` 
+                        : `Auto-calc: ${parseFloat(dlQty)} × BDT ${dlRate} = BDT ${(parseFloat(dlQty) * dlRate).toLocaleString()}`}
+                    </span>
+                  )}
+                </div>
+
+                {/* Notes */}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {language === 'bn' ? 'মন্তব্য (ঐচ্ছিক)' : 'Memo Notes (Optional)'}
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={dlNotes}
+                    onChange={(e) => setDlNotes(e.target.value)}
+                    placeholder={language === 'bn' ? "কোনো বিশেষ দ্রষ্টব্য..." : "Any special instruction or material grade note..."}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-emerald-600 shadow-sm"
+                  />
+                </div>
+
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowLedgerModal(false)}
+                  className="rounded-lg border border-slate-200 hover:bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600 cursor-pointer"
+                >
+                  {t.cancel}
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-4 py-2 text-xs font-bold text-white shadow-sm cursor-pointer border border-[#D4AF37]/20"
+                >
+                  {editingLedger 
+                    ? (language === 'bn' ? 'সংশোধন নিশ্চিত করুন' : 'Update Record') 
+                    : (language === 'bn' ? 'হিসাবভুক্ত করুন' : 'Post into Ledger')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DETAILED CONSTRUCTION MONEY RECEIPT MODAL (PRINT READY PREVIEW) */}
+      {activeReceipt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-lg rounded-xl border border-[#D4AF37]/30 bg-[#0c0a09] p-6 shadow-2xl relative block font-sans space-y-6 max-h-[95vh] overflow-y-auto print:border-0 print:shadow-none print:w-full print:max-w-none print:p-0">
+            
+            {/* Modal Header & Controls (Hidden during print) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-950 pb-4 print:hidden">
+              <div>
+                <h3 className="text-sm font-extrabold text-white tracking-widest uppercase font-sans flex items-center gap-1.5 mb-0.5">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  {language === 'bn' ? 'নির্মাণ তহবিল জমা রশিদ' : 'Construction Deposit Receipt'}
+                </h3>
+                <p className="text-[10px] text-slate-400 font-mono">
+                  {language === 'bn' ? 'অফিসিয়াল ক্যাশ রসিদ খতিয়ান' : 'Official Building Fund Receipt'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handlePrint}
+                  className="rounded px-3 py-1.5 bg-emerald-600 border border-emerald-500 text-white hover:bg-emerald-500 flex items-center gap-1.5 text-xs font-bold cursor-pointer transition-all duration-200 shadow-md transform active:scale-95"
+                >
+                  <Printer className="h-4 w-4" />
+                  <span>{language === 'bn' ? 'প্রিন্ট করুন' : 'Print'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadReceiptPDF}
+                  disabled={isGeneratingPDF}
+                  className="rounded px-3 py-1.5 bg-[#D4AF37]/20 border border-[#D4AF37]/50 text-[#D4AF37] hover:bg-[#D4AF37]/30 hover:text-white flex items-center gap-1.5 text-xs font-bold disabled:opacity-50 cursor-pointer transition-all duration-200"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>{isGeneratingPDF ? (language === 'bn' ? 'তৈরি হচ্ছে...' : 'Generating...') : (language === 'bn' ? 'পিডিএফ' : 'PDF')}</span>
+                </button>
+                <button 
+                  onClick={() => setActiveReceipt(null)} 
+                  className="rounded p-1.5 text-slate-400 hover:bg-neutral-800 hover:text-white transition-all duration-200"
+                  title={language === 'bn' ? 'বন্ধ করুন' : 'Close'}
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Money Receipt Layout starts here */}
+            <div id="printable-construction-receipt" className="space-y-6 border border-emerald-950/40 bg-neutral-950 p-6 rounded-lg text-slate-300">
+              
+              {/* Receipt Header Seal */}
+              <div className="flex justify-between items-start border-b border-emerald-950 pb-4">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-emerald-700 border border-[#D4AF37]/40">
+                    <Building2 className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-black text-white uppercase tracking-tight">{config?.name || 'Astha Twin Towers'}</h2>
+                    <span className="text-[9px] text-[#D4AF37] tracking-widest block font-mono">CONSTRUCTION CAPITAL REGISTER</span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="block text-[9px] uppercase font-bold text-slate-500 font-mono">Receipt Reference</span>
+                  <span className="font-mono text-xs font-bold text-white uppercase tracking-wider">
+                    {activeReceipt.receiptNo || `#REC-CS-${activeReceipt.id.substring(activeReceipt.id.length - 4).toUpperCase()}`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Sub-Header address meta */}
+              <div className="text-[10px] text-slate-500 font-mono leading-relaxed space-y-0.5">
+                <p>Location: {config?.address || 'Dhaka, Bangladesh'}</p>
+                <p>Contact: {config?.contactNo || '01XXXXXXXXX'} • Email: {config?.email || 'admin@asthatwintowers.com'}</p>
+                <p>Deposit Clear Date: {activeReceipt.payDate || new Date().toISOString().split('T')[0]}</p>
+              </div>
+
+              {/* Central ledger details */}
+              <div className="border border-emerald-950 rounded-lg p-3 bg-neutral-900/60 text-xs gap-3 space-y-2">
+                <div className="flex justify-between border-b border-emerald-950/50 pb-1.5">
+                  <span className="font-mono text-slate-500">{language === 'bn' ? 'সদস্যের নাম:' : 'MEMBER/CONTRIBUTOR:'}</span>
+                  <span className="font-bold text-white text-right">{activeReceipt.memberName}</span>
+                </div>
+                <div className="flex justify-between border-b border-emerald-950/50 pb-1.5">
+                  <span className="font-mono text-slate-500">{language === 'bn' ? 'ফ্ল্যাট নম্বর:' : 'FLAT UNIT:'}</span>
+                  <span className="font-bold text-[#D4AF37] font-mono">Flat {activeReceipt.flatNumber}</span>
+                </div>
+                <div className="flex justify-between border-b border-emerald-950/50 pb-1.5">
+                  <span className="font-mono text-slate-500">{language === 'bn' ? 'নির্মাণ ধাপ:' : 'CONSTRUCTION PHASE:'}</span>
+                  <span className="font-bold text-slate-200 font-sans">
+                    {language === 'bn' ? activePhase?.nameBn : activePhase?.nameEn}
+                  </span>
+                </div>
+                <div className="flex justify-between font-sans">
+                  <span className="font-mono text-slate-500">{language === 'bn' ? 'হিসাবখাত:' : 'FUNDS ACCOUNT:'}</span>
+                  <span className="font-bold text-emerald-400">
+                    {language === 'bn' ? 'বিল্ডিং প্ল্যান ও নির্মাণ তহবিল' : 'Structural Venture Fund'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Financial columns */}
+              <div className="space-y-2 border-t border-emerald-950 pt-4">
+                <div className="flex justify-between items-baseline text-xs font-sans">
+                  <span className="text-slate-400">{language === 'bn' ? 'পরিশোধিত অর্থের পরিমাণ:' : 'Amount Received BDT:'}</span>
+                  <span className="font-extrabold text-emerald-400 font-sans text-sm">{formatBDT(activeReceipt.amountPaid)}</span>
+                </div>
+                <div className="flex justify-between items-baseline text-xs">
+                  <span className="text-slate-400">{language === 'bn' ? 'পরিশোধের মাধ্যম:' : 'Payment Channel:'}</span>
+                  <span className="font-bold text-slate-200 font-mono">{activeReceipt.payMethod}</span>
+                </div>
+                {activeReceipt.transactionId && (
+                  <div className="flex justify-between items-baseline text-xs text-slate-400 font-mono">
+                    <span>{language === 'bn' ? 'লেনদেন আইডি (TrxID):' : 'Transaction Gateway ID:'}</span>
+                    <span className="text-[#D4AF37] font-bold">{activeReceipt.transactionId}</span>
+                  </div>
+                )}
+                {activeReceipt.notes && (
+                  <div className="flex justify-between items-baseline text-xs text-slate-400 font-mono pt-1">
+                    <span>{language === 'bn' ? 'মন্তব্য/নোট:' : 'Ledger Remarks:'}</span>
+                    <span className="text-slate-300 italic">{activeReceipt.notes}</span>
+                  </div>
+                )}
+                
+                {/* Net payment badge block status */}
+                <div className="flex justify-between items-center text-xs pt-3.5 border-t border-emerald-950/40 font-mono">
+                  <span>METRIC RECEIVED STATUS:</span>
+                  <span className="font-black tracking-widest text-emerald-500">
+                    [ RECEIVED & CLEAR ]
+                  </span>
+                </div>
+              </div>
+
+              {/* Seal Footer */}
+              <div className="flex justify-between items-center pt-8 text-[9px] font-mono text-slate-500 border-t border-emerald-950/20">
+                <div className="text-center w-24">
+                  <div className="border-b border-emerald-900 pb-1 mb-1" />
+                  <span>PREPARED BY</span>
+                </div>
+                <p className="text-center text-[8px] uppercase">{language === 'bn' ? 'ডিজিটাল রশিদ খতিয়ান রেকর্ড' : 'DIGITALLY GENERATED LEDGER RECORD'}</p>
+                <div className="text-center w-24">
+                  <div className="border-b border-emerald-900 pb-1 mb-1" />
+                  <span>AUTHORISED SEAL</span>
+                </div>
+              </div>
+
+            </div>
+
           </div>
         </div>
       )}

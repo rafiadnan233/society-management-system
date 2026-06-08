@@ -220,6 +220,19 @@ export interface ConstructionDeposit {
   notes?: string;
 }
 
+export interface ConstructionDailyLedgerEntry {
+  id: string;
+  date: string;
+  type: 'Labor' | 'Material';
+  title: string;
+  amount: number;
+  qty?: string;
+  rate?: number;
+  supplierOrRecipient: string;
+  voucherNo?: string;
+  notes?: string;
+}
+
 export interface ConstructionPhase {
   id: string;
   nameEn: string;
@@ -228,5 +241,6 @@ export interface ConstructionPhase {
   subscriptionPerMember: number;
   expenses: ConstructionExpense[];
   deposits: ConstructionDeposit[];
+  dailyLedger?: ConstructionDailyLedgerEntry[];
 }
 

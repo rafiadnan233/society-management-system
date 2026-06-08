@@ -41,6 +41,25 @@ export default function PrintPreviewModal({ isOpen, onClose, nativePrintRef }: P
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [isInvoice, setIsInvoice] = useState(false);
 
+  const [shouldRender, setShouldRender] = useState(isOpen);
+  const [animate, setAnimate] = useState(isOpen);
+
+  useEffect(() => {
+    let timeoutId: any;
+    if (isOpen) {
+      setShouldRender(true);
+      timeoutId = setTimeout(() => {
+        setAnimate(true);
+      }, 20);
+    } else {
+      setAnimate(false);
+      timeoutId = setTimeout(() => {
+        setShouldRender(false);
+      }, 300);
+    }
+    return () => clearTimeout(timeoutId);
+  }, [isOpen]);
+
   const preSanitizeDocument = async () => {
     try {
       // 1. Sanitize style blocks & sheets recursively
@@ -838,159 +857,177 @@ export default function PrintPreviewModal({ isOpen, onClose, nativePrintRef }: P
     }, 400);
   };
 
-  if (!isOpen) return null;
+  if (!shouldRender) {
+    return (
+      <div className="absolute top-[-9999px] left-[-9999px] print:relative print:top-0 print:left-0 block overflow-visible select-text">
+        <div id="dynamic-print-report">
+          {renderDynamicReport()}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-      <div className="w-full max-w-4xl bg-[#0c0a09] border border-emerald-950/60 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header toolbar */}
-        <div className="flex h-14 items-center justify-between border-b border-emerald-950/50 bg-neutral-950 px-6 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded bg-emerald-700/20 border border-emerald-600/40 flex items-center justify-center">
-              <Printer className="h-4 w-4 text-emerald-400" />
+    <>
+      <div 
+        className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md transition-opacity duration-300 ease-out ${
+          animate ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
+        <div 
+          className={`w-full max-w-4xl bg-[#0c0a09] border border-emerald-950/60 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-all duration-300 ease-out ${
+            animate ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-8 opacity-0 scale-95'
+          }`}
+        >
+          {/* Header toolbar */}
+          <div className="flex h-14 items-center justify-between border-b border-emerald-950/50 bg-neutral-950 px-6 shrink-0">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded bg-emerald-700/20 border border-emerald-600/40 flex items-center justify-center">
+                <Printer className="h-4 w-4 text-emerald-400" />
+              </div>
+              <div>
+                <h2 className="text-sm font-black text-white uppercase tracking-wider font-sans">
+                  {language === 'bn' ? 'প্রিন্ট ও পিডিএফ ডকুমেন্ট সেন্টার' : 'PDF Document & Print Centre'}
+                </h2>
+                <span className="text-[10px] text-slate-400 block font-mono">
+                  {isInvoice ? (language === 'bn' ? 'অফিসিয়াল মানি রশিদ এক্সপোর্ট' : 'Official Billings Voucher') : (language === 'bn' ? 'সিস্টেম মডিউল খতিয়ান' : 'Application Active View Ledger')}
+                </span>
+              </div>
             </div>
-            <div>
-              <h2 className="text-sm font-black text-white uppercase tracking-wider font-sans">
-                {language === 'bn' ? 'প্রিন্ট ও পিডিএফ ডকুমেন্ট সেন্টার' : 'PDF Document & Print Centre'}
-              </h2>
-              <span className="text-[10px] text-slate-400 block font-mono">
-                {isInvoice ? (language === 'bn' ? 'অফিসিয়াল মানি রশিদ এক্সপোর্ট' : 'Official Billings Voucher') : (language === 'bn' ? 'সিস্টেম মডিউল খতিয়ান' : 'Application Active View Ledger')}
-              </span>
-            </div>
-          </div>
-          <button 
-            type="button" 
-            onClick={onClose} 
-            className="rounded p-1.5 text-slate-400 hover:bg-emerald-950/40 hover:text-white transition-colors cursor-pointer"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* Content workspace block */}
-        <div className="flex-1 overflow-y-auto p-6 md:p-8 flex flex-col md:flex-row gap-8 bg-neutral-950/30">
-          
-          {/* Left panel: Live True Snapshot Preview */}
-          <div className="flex-1 bg-neutral-950/50 border border-emerald-950/30 rounded-lg p-4 flex items-center justify-center min-h-[300px] md:min-h-[auto] relative overflow-hidden">
-            {isRenderingPreview ? (
-              <div className="flex flex-col items-center justify-center text-center p-6 space-y-4">
-                <Loader2 className="h-10 w-10 text-emerald-500 animate-spin" />
-                <div>
-                  <p className="text-xs font-bold text-slate-200">
-                    {language === 'bn' ? 'স্ন্যাপশট লোড করা হচ্ছে...' : 'Rendering Document Preview...'}
-                  </p>
-                  <p className="text-[10px] text-slate-500 font-mono mt-1">
-                    {language === 'bn' ? 'উচ্চ মানের ভেক্টর ম্যাপিং নির্ধারণ করা হচ্ছে' : 'Processing viewport margins and layers'}
-                  </p>
-                </div>
-              </div>
-            ) : previewError ? (
-              <div className="flex flex-col items-center text-center p-6 space-y-3">
-                <span className="text-rose-500 text-3xl">⚠️</span>
-                <p className="text-xs text-rose-300 font-semibold max-w-xs">{previewError}</p>
-                <button
-                  type="button"
-                  onClick={generateThumbnail}
-                  className="mt-2 flex items-center gap-1.5 rounded-md bg-emerald-950/60 hover:bg-emerald-900/60 text-[10px] font-bold text-emerald-400 px-3 py-1.5 border border-emerald-900/60 cursor-pointer"
-                >
-                  <RefreshCw className="h-3 w-3" />
-                  <span>{language === 'bn' ? 'পুনরায় চেষ্টা করুন' : 'Retry Refresh'}</span>
-                </button>
-              </div>
-            ) : previewImg ? (
-              <div className="w-full h-full flex flex-col items-center justify-center">
-                <p className="text-[10px] text-slate-500 font-mono mb-2 uppercase tracking-wide">
-                  {language === 'bn' ? 'পেজ স্ন্যাপশট প্রিভিউ' : 'Document Print preview'}
-                </p>
-                <div className="border border-slate-700/40 rounded shadow-2xl bg-white max-h-[480px] overflow-y-auto max-w-full p-2">
-                  <img 
-                    src={previewImg} 
-                    alt="Billing print preview" 
-                    className="w-full h-auto object-contain pointer-events-none"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="text-xs text-slate-500 italic">
-                {language === 'bn' ? 'কোনো প্রিভিউ উপলব্ধ নেই' : 'No preview available'}
-              </div>
-            )}
+            <button 
+              type="button" 
+              onClick={onClose} 
+              className="rounded p-1.5 text-slate-400 hover:bg-emerald-950/40 hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
 
-          {/* Right panel: Controls and meta directives */}
-          <div className="w-full md:w-80 shrink-0 flex flex-col justify-between space-y-6">
+          {/* Content workspace block */}
+          <div className="flex-1 overflow-y-auto p-6 md:p-8 flex flex-col md:flex-row gap-8 bg-neutral-950/30">
             
-            {/* Meta controls list layout */}
-            <div className="space-y-4">
-              <div className="p-3.5 rounded-lg border border-emerald-950/50 bg-neutral-950/80 space-y-2">
-                <h4 className="text-[10px] font-black uppercase text-emerald-400 font-mono flex items-center gap-1.5">
-                  <Info className="h-3 w-3 shrink-0" />
-                  {language === 'bn' ? 'স্মার্ট প্রিন্টিং সুবিধা' : 'Sandboxed Printing Utility'}
-                </h4>
-                <p className="text-[10px] text-slate-400 leading-relaxed">
-                  {language === 'bn' 
-                    ? 'ব্রাউজার সীমাবদ্ধতার কারণে সাধারণ প্রিন্ট অপশন আইফ্রেম (iFrame) এর ভেতর থেকে কাজ নাও করতে পারে। তাই সরাসরি পিডিএফ ডাউনলোড করে প্রিন্ট করার পরম পরামর্শ দেওয়া হচ্ছে।'
-                    : 'Inside sandboxed preview containers, default browser printer popups are often blocked. Generating static vector PDF documents guarantees flawless physical alignment and no truncation errors.'}
-                </p>
-              </div>
-
-              <div className="space-y-2.5 pt-2">
-                {/* PDF generation primary button */}
-                <button
-                  type="button"
-                  disabled={isGenerating || isRenderingPreview}
-                  onClick={handleDownloadPDF}
-                  className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-500 px-4 py-3 text-xs font-bold text-white shadow-lg transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:scale-100 cursor-pointer"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin text-white" />
-                      <span>{language === 'bn' ? 'পিডিএফ প্রস্তুত হচ্ছে...' : 'Compiling PDF...'}</span>
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="h-4 w-4" />
-                      <span>{language === 'bn' ? 'পিডিএফ ফাইল ডাউনলোড করুন (A4)' : 'Download High-Fidelity PDF'}</span>
-                    </>
-                  )}
-                </button>
-
-                {/* High quality Image download button */}
-                <button
-                  type="button"
-                  disabled={isGenerating || isRenderingPreview}
-                  onClick={handleDownloadPNG}
-                  className="w-full flex items-center justify-center gap-2 rounded-lg bg-neutral-900 hover:bg-neutral-850 border border-emerald-950 px-4 py-2.5 text-xs font-bold text-slate-300 hover:text-white transition-all disabled:opacity-40 cursor-pointer"
-                >
-                  <Download className="h-3.5 w-3.5 text-emerald-500" />
-                  <span>{language === 'bn' ? 'ছবি (PNG Image) হিসেবে সেভ করুন' : 'Export Statement as Image'}</span>
-                </button>
-
-                {/* Direct printer fallback selector option */}
-                <div className="relative pt-2 border-t border-emerald-950/40">
-                  <span className="block text-[9px] uppercase tracking-wider text-slate-500 font-mono mb-2">
-                    {language === 'bn' ? 'বিকল্প ব্যবস্থা' : 'Fallback Methods'}
-                  </span>
-                  
+            {/* Left panel: Live True Snapshot Preview */}
+            <div className="flex-1 bg-neutral-950/50 border border-emerald-950/30 rounded-lg p-4 flex items-center justify-center min-h-[300px] md:min-h-[auto] relative overflow-hidden">
+              {isRenderingPreview ? (
+                <div className="flex flex-col items-center justify-center text-center p-6 space-y-4">
+                  <Loader2 className="h-10 w-10 text-emerald-500 animate-spin" />
+                  <div>
+                    <p className="text-xs font-bold text-slate-200">
+                      {language === 'bn' ? 'স্ন্যাপশট লোড করা হচ্ছে...' : 'Rendering Document Preview...'}
+                    </p>
+                    <p className="text-[10px] text-slate-500 font-mono mt-1">
+                      {language === 'bn' ? 'উচ্চ মানের ভেক্টর ম্যাপিং নির্ধারণ করা হচ্ছে' : 'Processing viewport margins and layers'}
+                    </p>
+                  </div>
+                </div>
+              ) : previewError ? (
+                <div className="flex flex-col items-center text-center p-6 space-y-3">
+                  <span className="text-rose-500 text-3xl">⚠️</span>
+                  <p className="text-xs text-rose-300 font-semibold max-w-xs">{previewError}</p>
                   <button
                     type="button"
-                    onClick={handleTriggerNativePrinterFallback}
-                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-neutral-950/20 hover:bg-neutral-950/70 border border-slate-800 px-4 py-2 text-[11px] font-bold text-slate-400 hover:text-slate-200 cursor-pointer transition-colors"
+                    onClick={generateThumbnail}
+                    className="mt-2 flex items-center gap-1.5 rounded-md bg-emerald-950/60 hover:bg-emerald-900/60 text-[10px] font-bold text-emerald-400 px-3 py-1.5 border border-emerald-900/60 cursor-pointer"
                   >
-                    <Printer className="h-3.5 w-3.5 text-emerald-700" />
-                    <span>{language === 'bn' ? 'সরাসরি ব্রাউজার প্রিন্ট উইন্ডো' : 'Launch OS Printer Window'}</span>
+                    <RefreshCw className="h-3 w-3" />
+                    <span>{language === 'bn' ? 'পুনরায় চেষ্টা করুন' : 'Retry Refresh'}</span>
                   </button>
                 </div>
+              ) : previewImg ? (
+                <div className="w-full h-full flex flex-col items-center justify-center">
+                  <p className="text-[10px] text-slate-500 font-mono mb-2 uppercase tracking-wide">
+                    {language === 'bn' ? 'পেজ স্ন্যাপশট প্রিভিউ' : 'Document Print preview'}
+                  </p>
+                  <div className="border border-slate-700/40 rounded shadow-2xl bg-white max-h-[480px] overflow-y-auto max-w-full p-2">
+                    <img 
+                      src={previewImg} 
+                      alt="Billing print preview" 
+                      className="w-full h-auto object-contain pointer-events-none"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-slate-500 italic">
+                  {language === 'bn' ? 'কোনো প্রিভিউ উপলব্ধ নেই' : 'No preview available'}
+                </div>
+              )}
+            </div>
+
+            {/* Right panel: Controls and meta directives */}
+            <div className="w-full md:w-80 shrink-0 flex flex-col justify-between space-y-6">
+              
+              {/* Meta controls list layout */}
+              <div className="space-y-4">
+                <div className="p-3.5 rounded-lg border border-emerald-950/50 bg-neutral-950/80 space-y-2">
+                  <h4 className="text-[10px] font-black uppercase text-emerald-400 font-mono flex items-center gap-1.5">
+                    <Info className="h-3 w-3 shrink-0" />
+                    {language === 'bn' ? 'স্মার্ট প্রিন্টিং সুবিধা' : 'Sandboxed Printing Utility'}
+                  </h4>
+                  <p className="text-[10px] text-slate-400 leading-relaxed">
+                    {language === 'bn' 
+                      ? 'ব্রাউজার সীমাবদ্ধতার কারণে সাধারণ প্রিন্ট অপশন আইফ্রেম (iFrame) এর ভেতর থেকে কাজ নাও করতে পারে। তাই সরাসরি পিডিএফ ডাউনলোড করে প্রিন্ট করার পরম পরামর্শ দেওয়া হচ্ছে।'
+                      : 'Inside sandboxed preview containers, default browser printer popups are often blocked. Generating static vector PDF documents guarantees flawless physical alignment and no truncation errors.'}
+                  </p>
+                </div>
+
+                <div className="space-y-2.5 pt-2">
+                  {/* PDF generation primary button */}
+                  <button
+                    type="button"
+                    disabled={isGenerating || isRenderingPreview}
+                    onClick={handleDownloadPDF}
+                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-500 px-4 py-3 text-xs font-bold text-white shadow-lg transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:scale-100 cursor-pointer"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin text-white" />
+                        <span>{language === 'bn' ? 'পিডিএফ প্রস্তুত হচ্ছে...' : 'Compiling PDF...'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="h-4 w-4" />
+                        <span>{language === 'bn' ? 'পিডিএফ ফাইল ডাউনলোড করুন (A4)' : 'Download High-Fidelity PDF'}</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* High quality Image download button */}
+                  <button
+                    type="button"
+                    disabled={isGenerating || isRenderingPreview}
+                    onClick={handleDownloadPNG}
+                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-neutral-900 hover:bg-neutral-850 border border-emerald-950 px-4 py-2.5 text-xs font-bold text-slate-300 hover:text-white transition-all disabled:opacity-40 cursor-pointer"
+                  >
+                    <Download className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>{language === 'bn' ? 'ছবি (PNG Image) হিসেবে সেভ করুন' : 'Export Statement as Image'}</span>
+                  </button>
+
+                  {/* Direct printer fallback selector option */}
+                  <div className="relative pt-2 border-t border-emerald-950/40">
+                    <span className="block text-[9px] uppercase tracking-wider text-slate-500 font-mono mb-2">
+                      {language === 'bn' ? 'বিকল্প ব্যবস্থা' : 'Fallback Methods'}
+                    </span>
+                    
+                    <button
+                      type="button"
+                      onClick={handleTriggerNativePrinterFallback}
+                      className="w-full flex items-center justify-center gap-2 rounded-lg bg-neutral-950/20 hover:bg-neutral-950/70 border border-slate-800 px-4 py-2 text-[11px] font-bold text-slate-400 hover:text-slate-200 cursor-pointer transition-colors"
+                    >
+                      <Printer className="h-3.5 w-3.5 text-emerald-700" />
+                      <span>{language === 'bn' ? 'সরাসরি ব্রাউজার প্রিন্ট উইন্ডো' : 'Launch OS Printer Window'}</span>
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            {/* Instruction Footer warning info */}
-            <div className="text-[9px] text-slate-550 leading-loose border-t border-emerald-950/20 pt-4 font-mono">
-              <p>Platform Ingress Ref: AISTUDIO-PRINT-SECURE</p>
-              <p>Resolution density: 300 DPI (2.0x sampling rate)</p>
-            </div>
+              {/* Instruction Footer warning info */}
+              <div className="text-[9px] text-slate-550 leading-loose border-t border-emerald-950/20 pt-4 font-mono">
+                <p>Platform Ingress Ref: AISTUDIO-PRINT-SECURE</p>
+                <p>Resolution density: 300 DPI (2.0x sampling rate)</p>
+              </div>
 
+            </div>
           </div>
         </div>
       </div>
@@ -1001,6 +1038,6 @@ export default function PrintPreviewModal({ isOpen, onClose, nativePrintRef }: P
           {renderDynamicReport()}
         </div>
       </div>
-    </div>
+    </>
   );
 }
