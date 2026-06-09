@@ -3,9 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSociety } from '../context/SocietyContext';
 import { translations } from '../utils/translations';
+import { db } from '../utils/firebase';
+import { collection, query, orderBy, onSnapshot, limit } from 'firebase/firestore';
 import {
   Users,
   Building,
@@ -27,7 +29,9 @@ import {
   Wrench,
   Droplets,
   Gauge,
-  Layers
+  Layers,
+  Video,
+  Play
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -48,6 +52,51 @@ export default function Dashboard() {
   const t = translations[language];
 
   const [showQuickActions, setShowQuickActions] = useState(false);
+  const [recentVideos, setRecentVideos] = useState<any[]>([]);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'project_videos'),
+      orderBy('uploadDate', 'desc'),
+      limit(5)
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const vList = snapshot.docs.map(docSnap => {
+        const data = docSnap.data();
+        let dateStr = '';
+        if (data.uploadDate) {
+          try {
+            if (data.uploadDate.toDate) {
+              dateStr = data.uploadDate.toDate().toISOString().split('T')[0];
+            } else if (data.uploadDate.seconds) {
+              dateStr = new Date(data.uploadDate.seconds * 1000).toISOString().split('T')[0];
+            } else {
+              dateStr = String(data.uploadDate);
+            }
+          } catch(e) {
+            dateStr = new Date().toISOString().split('T')[0];
+          }
+        } else {
+          dateStr = new Date().toISOString().split('T')[0];
+        }
+        return {
+          id: docSnap.id,
+          title: data.title || '',
+          projectName: data.projectName || '',
+          category: data.category || '',
+          thumbnail: data.thumbnail || 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=200&auto=format&fit=crop&q=80',
+          uploadDate: dateStr,
+          youtubeUrl: data.youtubeUrl || '',
+          facebookUrl: data.facebookUrl || '',
+          description: data.description || ''
+        };
+      });
+      setRecentVideos(vList);
+    }, (error) => {
+      console.warn("Dashboard recent videos listener suppressed: ", error);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Calculations
   const totalResidents = members.filter(m => m.status === 'Active').length;
@@ -638,6 +687,69 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Recent Project Videos Widget */}
+          <div className="rounded-xl border border-emerald-950 bg-neutral-950/40 p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-white font-mono flex items-center gap-1.5">
+                  <Video className="h-4 w-4 text-emerald-400 animate-pulse" />
+                  {language === 'bn' ? 'সাম্প্রতিক প্রকল্পের লাইভ ভিডিও খতিয়ান' : 'Recent Project Live Videos'}
+                </h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  {language === 'bn' ? 'আস্থা টুইন টাওয়ার্সের সরাসরি ভিডিও আপডেট' : 'Stay synchronized with live progress and construction works'}
+                </p>
+              </div>
+              <button 
+                onClick={() => setActiveTab('project-videos')}
+                className="text-[10px] text-[#D4AF37] border border-[#D4AF37]/35 rounded px-2.5 py-1 hover:bg-[#D4AF37]/10 flex items-center gap-1 cursor-pointer transition-colors"
+              >
+                <span>{language === 'bn' ? 'সব ভিডিও দেখুন' : 'Go to Gallery'}</span>
+              </button>
+            </div>
+
+            {recentVideos.length === 0 ? (
+              <div className="text-center py-6 text-xs text-slate-500 font-mono">
+                🎥 No recent videos posted yet.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+                {recentVideos.map((v) => (
+                  <div 
+                    key={v.id}
+                    onClick={() => setActiveTab('project-videos')}
+                    className="group rounded-lg border border-emerald-950/60 bg-neutral-900/50 hover:border-emerald-700 hover:bg-[#043327]/30 transition-all p-2.5 flex flex-col justify-between cursor-pointer shadow relative"
+                  >
+                    {/* Thumbnail Image */}
+                    <div className="relative aspect-video rounded-md overflow-hidden bg-neutral-950 mb-2">
+                      <img 
+                        src={v.thumbnail || null} 
+                        alt={v.title}
+                        className="w-full h-full object-cover filter brightness-85 group-hover:brightness-100 transition-all"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-70 group-hover:opacity-100 transition-opacity">
+                        <div className="h-8 w-8 rounded-full bg-emerald-600/90 flex items-center justify-center shadow-md">
+                          <Play className="h-3 w-3 text-white fill-white ml-0.5" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Meta info */}
+                    <div className="space-y-1">
+                      <span className="text-[8px] bg-emerald-950 text-emerald-300 rounded px-1.5 py-0.5 font-mono font-bold leading-none block w-fit">
+                        {v.projectName}
+                      </span>
+                      <h4 className="text-[11px] font-bold text-white font-sans line-clamp-1 leading-snug group-hover:text-amber-400 transition-colors">
+                        {v.title}
+                      </h4>
+                      <p className="text-[9px] text-[#D4AF37]/80 font-mono leading-none">{v.uploadDate}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
         </div>

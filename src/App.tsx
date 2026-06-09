@@ -26,6 +26,7 @@ import Settings from './pages/Settings';
 import Profile from './pages/Profile';
 import BackupRestore from './pages/BackupRestore';
 import Construction from './pages/Construction';
+import ProjectVideos from './pages/ProjectVideos';
 
 function AppContent() {
   const { currentUser, activeTab } = useSociety();
@@ -89,6 +90,8 @@ function AppContent() {
         return <Profile />;
       case 'backup':
         return <BackupRestore />;
+      case 'project-videos':
+        return <ProjectVideos />;
       default:
         return <Dashboard />;
     }

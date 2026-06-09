@@ -115,5 +115,10 @@ service cloud.firestore {
     match /live_data/{dataId} {
       allow read, write: if true;
     }
+
+    // Project Live Videos Collection
+    match /project_videos/{videoId} {
+      allow read, write: if true;
+    }
   }
 }

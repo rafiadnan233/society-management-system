@@ -207,9 +207,31 @@
         "createdAt": { "type": "string" }
       },
       "required": ["id", "name", "email", "role", "status", "createdAt"]
+    },
+    "ProjectVideo": {
+      "title": "ProjectVideo",
+      "description": "A representation of a project related video with title, details, thumbnail, category and embed links.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "projectName": { "type": "string" },
+        "category": { "type": "string" },
+        "youtubeUrl": { "type": "string" },
+        "facebookUrl": { "type": "string" },
+        "thumbnail": { "type": "string" },
+        "uploadDate": { "type": "string" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["title", "projectName", "category", "uploadDate", "createdBy"]
     }
   },
   "firestore": {
+    "project_videos/{videoId}": {
+      "schema": "ProjectVideo",
+      "description": "Collection of documentary or live progress videos tracking construction and highlights of the estate."
+    },
     "config/latest": {
       "schema": "SocietyConfig",
       "description": "Global settings configuration document representing current parameters."

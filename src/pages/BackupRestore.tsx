@@ -834,7 +834,7 @@ export default function BackupRestore() {
                 
                 <div className="flex items-center gap-3.5">
                   {user.photoURL ? (
-                    <img referrerPolicy="no-referrer" src={user.photoURL} alt={user.displayName || 'Google User'} className="h-10 w-10 rounded-full border border-blue-500 shadow-md shadow-blue-950 shrink-0" />
+                    <img referrerPolicy="no-referrer" src={user.photoURL || null} alt={user.displayName || 'Google User'} className="h-10 w-10 rounded-full border border-blue-500 shadow-md shadow-blue-950 shrink-0" />
                   ) : (
                     <div className="h-10 w-10 rounded-full bg-blue-950 flex items-center justify-center border border-blue-500 font-bold text-blue-400 font-mono shrink-0">
                       {user.displayName?.substring(0, 1) || 'G'}

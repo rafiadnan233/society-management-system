@@ -599,7 +599,7 @@ export default function Members() {
                   <div className="h-12 w-12 shrink-0 rounded-lg border border-[#D4AF37]/35 bg-neutral-900 flex items-center justify-center overflow-hidden relative group-hover:border-[#D4AF37]/65 transition-all duration-300">
                     {member.photoUrl ? (
                       <img 
-                        src={member.photoUrl} 
+                        src={member.photoUrl || null} 
                         alt={member.name} 
                         className="h-full w-full object-cover"
                         referrerPolicy="no-referrer"
@@ -1110,7 +1110,7 @@ export default function Members() {
                       <div className="relative aspect-square w-full bg-slate-950/80 border-b border-emerald-950/60 overflow-hidden flex items-center justify-center">
                         {photo ? (
                           <img 
-                            src={photo} 
+                            src={photo || null} 
                             alt={residentName}
                             referrerPolicy="no-referrer"
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
@@ -1184,7 +1184,7 @@ export default function Members() {
                   {photoUrl ? (
                     <>
                       <img 
-                        src={photoUrl} 
+                        src={photoUrl || null} 
                         alt="Preview" 
                         className="h-full w-full object-cover" 
                         referrerPolicy="no-referrer"
@@ -1656,7 +1656,7 @@ export default function Members() {
                 <div className="h-16 w-16 rounded-xl bg-slate-900 border border-emerald-950 overflow-hidden shrink-0 flex items-center justify-center">
                   {flatFormPhoto.trim() ? (
                     <img 
-                      src={flatFormPhoto} 
+                      src={flatFormPhoto || null} 
                       alt="Preview" 
                       referrerPolicy="no-referrer"
                       className="h-full w-full object-cover" 

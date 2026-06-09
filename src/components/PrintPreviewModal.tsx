@@ -350,7 +350,7 @@ export default function PrintPreviewModal({ isOpen, onClose, nativePrintRef }: P
             <div className="h-10 w-10 shrink-0 rounded border border-slate-300 bg-slate-100 flex items-center justify-center overflow-hidden">
               {m.photoUrl ? (
                 <img 
-                  src={m.photoUrl} 
+                  src={m.photoUrl || null} 
                   alt={m.name} 
                   className="h-full w-full object-cover"
                   referrerPolicy="no-referrer"
@@ -940,7 +940,7 @@ export default function PrintPreviewModal({ isOpen, onClose, nativePrintRef }: P
                   </p>
                   <div className="border border-slate-700/40 rounded shadow-2xl bg-white max-h-[480px] overflow-y-auto max-w-full p-2">
                     <img 
-                      src={previewImg} 
+                      src={previewImg || null} 
                       alt="Billing print preview" 
                       className="w-full h-auto object-contain pointer-events-none"
                       referrerPolicy="no-referrer"

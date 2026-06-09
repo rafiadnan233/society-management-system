@@ -165,7 +165,7 @@ export default function MemberPaymentHistory({ member, onClose }: MemberPaymentH
             <div className="h-14 w-14 shrink-0 rounded-xl border border-[#D4AF37]/40 bg-neutral-900 flex items-center justify-center overflow-hidden">
               {member.photoUrl ? (
                 <img 
-                  src={member.photoUrl} 
+                  src={member.photoUrl || null} 
                   alt={member.name} 
                   className="h-full w-full object-cover"
                   referrerPolicy="no-referrer"

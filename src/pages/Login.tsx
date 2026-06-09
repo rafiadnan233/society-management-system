@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '../utils/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, onSnapshot, query, orderBy, addDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import building3dImg from '../assets/images/building_3d_view_1780387092893.png';
 import constructionImg from '../assets/images/construction_progress_1780387114013.png';
 import { useSociety } from '../context/SocietyContext';
@@ -34,8 +34,44 @@ import {
   Upload,
   BookOpen,
   CreditCard,
-  UserPlus
+  UserPlus,
+  Video,
+  Play,
+  Tv,
+  Search,
+  Trash2,
+  Edit2
 } from 'lucide-react';
+
+interface ProjectVideo {
+  id: string;
+  title: string;
+  description: string;
+  projectName: string;
+  category: string;
+  youtubeUrl: string;
+  facebookUrl: string;
+  thumbnail: string;
+  uploadDate: any; 
+  createdBy: string;
+  isFeatured?: boolean;
+}
+
+const PRESET_THUMBNAILS = [
+  { url: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=600&auto=format&fit=crop&q=80', label: 'Construction Structure' },
+  { url: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600&auto=format&fit=crop&q=80', label: 'Concrete & Steel Work' },
+  { url: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=600&auto=format&fit=crop&q=80', label: 'Modern Highrise Glass' },
+  { url: 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?w=600&auto=format&fit=crop&q=80', label: 'Video Production Media' },
+  { url: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=600&auto=format&fit=crop&q=80', label: 'Community Events Meeting' }
+];
+
+const CATEGORIES = [
+  'Construction Progress',
+  'Architectural Tour',
+  'Security Briefing',
+  'Society Events',
+  'General Complex'
+];
 
 interface LoginProps {
   onRegisterClick: () => void;
@@ -1704,9 +1740,255 @@ export default function Login({ onRegisterClick }: LoginProps) {
   const [simulatedOtpNotification, setSimulatedOtpNotification] = useState<{ otp: string; email: string } | null>(null);
 
   // Active Tab for the info gallery
-  const [activeTab, setActiveTab] = useState<'3d' | 'construction' | 'messages' | 'notices' | 'about'>('3d');
+  const [activeTab, setActiveTab] = useState<'3d' | 'construction' | 'messages' | 'notices' | 'about' | 'videos'>('3d');
   const [activeBrochureIndex, setActiveBrochureIndex] = useState(0);
   const [showBrochureToast, setShowBrochureToast] = useState(false);
+
+  // PROJECT LIVE VIDEO INTEGRATED STATES
+  const [videos, setVideos] = useState<ProjectVideo[]>([]);
+  const [videosLoading, setVideosLoading] = useState(true);
+  const [videoSearchQuery, setVideoSearchQuery] = useState('');
+  const [videoSelectedCategory, setVideoSelectedCategory] = useState('All');
+  const [activeWatchVideo, setActiveWatchVideo] = useState<ProjectVideo | null>(null);
+
+  // Video Form states
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [editingVideo, setEditingVideo] = useState<ProjectVideo | null>(null);
+  
+  const [videoTitle, setVideoTitle] = useState('');
+  const [videoDescription, setVideoDescription] = useState('');
+  const [videoProjectName, setVideoProjectName] = useState('Tower 1');
+  const [videoCategory, setVideoCategory] = useState('Construction Progress');
+  const [videoYoutubeUrl, setVideoYoutubeUrl] = useState('');
+  const [videoFacebookUrl, setVideoFacebookUrl] = useState('');
+  const [videoThumbnailUrl, setVideoThumbnailUrl] = useState(PRESET_THUMBNAILS[0].url);
+  const [videoIsFeatured, setVideoIsFeatured] = useState(false);
+  const [videoFormError, setVideoFormError] = useState<string | null>(null);
+  const [videoIsSubmitting, setVideoIsSubmitting] = useState(false);
+
+  // Live video Firestore subscription hook
+  useEffect(() => {
+    const qVideos = query(collection(db, 'project_videos'), orderBy('uploadDate', 'desc'));
+    const unsubscribe = onSnapshot(qVideos, (snapshot) => {
+      const vList = snapshot.docs.map(docSnap => {
+        const data = docSnap.data();
+        let dateStr = '';
+        if (data.uploadDate) {
+          try {
+            if (data.uploadDate.toDate) {
+              dateStr = data.uploadDate.toDate().toISOString().split('T')[0];
+            } else if (data.uploadDate.seconds) {
+              dateStr = new Date(data.uploadDate.seconds * 1000).toISOString().split('T')[0];
+            } else {
+              dateStr = String(data.uploadDate);
+            }
+          } catch (e) {
+            dateStr = new Date().toISOString().split('T')[0];
+          }
+        } else {
+          dateStr = new Date().toISOString().split('T')[0];
+        }
+
+        return {
+          id: docSnap.id,
+          title: data.title || '',
+          description: data.description || '',
+          projectName: data.projectName || '',
+          category: data.category || '',
+          youtubeUrl: data.youtubeUrl || '',
+          facebookUrl: data.facebookUrl || '',
+          thumbnail: data.thumbnail || PRESET_THUMBNAILS[0].url,
+          uploadDate: dateStr,
+          createdBy: data.createdBy || 'Admin',
+          isFeatured: !!data.isFeatured
+        };
+      }) as ProjectVideo[];
+
+      setVideos(vList);
+      setVideosLoading(false);
+    }, (error) => {
+      console.error("Firestore sync project_videos error:", error);
+      setVideosLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const getYoutubeEmbedUrl = (url: string) => {
+    if (!url) return '';
+    try {
+      const trimmed = url.trim();
+      let videoId = '';
+      
+      if (trimmed.includes('youtu.be/')) {
+        const parts = trimmed.split('youtu.be/');
+        if (parts.length > 1) {
+          const possibleId = parts[1].split(/[?#&]/)[0];
+          if (possibleId.length === 11) {
+            videoId = possibleId;
+          }
+        }
+      }
+      
+      if (!videoId && trimmed.includes('/shorts/')) {
+        const parts = trimmed.split('/shorts/');
+        if (parts.length > 1) {
+          const possibleId = parts[1].split(/[?#&]/)[0];
+          if (possibleId.length === 11) {
+            videoId = possibleId;
+          }
+        }
+      }
+
+      if (!videoId && trimmed.includes('/live/')) {
+        const parts = trimmed.split('/live/');
+        if (parts.length > 1) {
+          const possibleId = parts[1].split(/[?#&]/)[0];
+          if (possibleId.length === 11) {
+            videoId = possibleId;
+          }
+        }
+      }
+
+      if (!videoId && trimmed.includes('/embed/')) {
+        const parts = trimmed.split('/embed/');
+        if (parts.length > 1) {
+          const possibleId = parts[1].split(/[?#&]/)[0];
+          if (possibleId.length === 11) {
+            videoId = possibleId;
+          }
+        }
+      }
+
+      if (!videoId && trimmed.includes('v=')) {
+        const regWatch = /[?&]v=([^#&?]*)/;
+        const matchWatch = trimmed.match(regWatch);
+        if (matchWatch && matchWatch[1].length === 11) {
+          videoId = matchWatch[1];
+        }
+      }
+
+      if (!videoId) {
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|shorts\/|live\/)([^#\&\?]*).*/;
+        const match = trimmed.match(regExp);
+        if (match && match[2].length === 11) {
+          videoId = match[2];
+        }
+      }
+
+      if (videoId) {
+        return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+      }
+    } catch (e) {
+      console.error("Error parsing YouTube URL:", e);
+    }
+    return '';
+  };
+
+  const getFacebookEmbedUrl = (url: string) => {
+    if (!url) return '';
+    return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=0&t=0&autoplay=true`;
+  };
+
+  const handleOpenAddVideo = () => {
+    setEditingVideo(null);
+    setVideoTitle('');
+    setVideoDescription('');
+    setVideoProjectName('Tower 1');
+    setVideoCategory('Construction Progress');
+    setVideoYoutubeUrl('');
+    setVideoFacebookUrl('');
+    setVideoThumbnailUrl(PRESET_THUMBNAILS[0].url);
+    setVideoIsFeatured(false);
+    setVideoFormError(null);
+    setVideoIsSubmitting(false);
+    setShowVideoModal(true);
+  };
+
+  const handleOpenEditVideo = (v: ProjectVideo) => {
+    setEditingVideo(v);
+    setVideoTitle(v.title);
+    setVideoDescription(v.description);
+    setVideoProjectName(v.projectName);
+    setVideoCategory(v.category);
+    setVideoYoutubeUrl(v.youtubeUrl);
+    setVideoFacebookUrl(v.facebookUrl);
+    setVideoThumbnailUrl(v.thumbnail);
+    setVideoIsFeatured(!!v.isFeatured);
+    setVideoFormError(null);
+    setVideoIsSubmitting(false);
+    setShowVideoModal(true);
+  };
+
+  const saveVideoData = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!videoTitle.trim()) {
+      setVideoFormError(language === 'bn' ? 'ভিডিও শিরোনাম আবশ্যক!' : 'Video Title is required!');
+      return;
+    }
+
+    let ytUrl = videoYoutubeUrl.trim();
+    if (ytUrl && !ytUrl.startsWith('http://') && !ytUrl.startsWith('https://')) {
+      ytUrl = 'https://' + ytUrl;
+    }
+
+    let fbUrl = videoFacebookUrl.trim();
+    if (fbUrl && !fbUrl.startsWith('http://') && !fbUrl.startsWith('https://')) {
+      fbUrl = 'https://' + fbUrl;
+    }
+
+    if (!ytUrl && !fbUrl) {
+      setVideoFormError(language === 'bn' 
+        ? 'দয়া করে ইউটিউব অথবা ফেসবুক ভিডিওর যেকোনো একটি সঠিক লিংক দিন!' 
+        : 'Please provide either a YouTube or a Facebook Video Link!');
+      return;
+    }
+
+    setVideoFormError(null);
+    setVideoIsSubmitting(true);
+
+    const payload = {
+      title: videoTitle.trim(),
+      description: videoDescription.trim(),
+      projectName: videoProjectName,
+      category: videoCategory,
+      youtubeUrl: ytUrl,
+      facebookUrl: fbUrl,
+      thumbnail: videoThumbnailUrl || PRESET_THUMBNAILS[0].url,
+      isFeatured: videoIsFeatured,
+      createdBy: 'Admin',
+      uploadDate: serverTimestamp()
+    };
+
+    try {
+      if (editingVideo) {
+        await updateDoc(doc(db, 'project_videos', editingVideo.id), payload);
+      } else {
+        await addDoc(collection(db, 'project_videos'), payload);
+      }
+      setVideoIsSubmitting(false);
+      setShowVideoModal(false);
+    } catch (err: any) {
+      setVideoIsSubmitting(false);
+      const errMsg = err?.message || String(err);
+      setVideoFormError(language === 'bn' 
+        ? `ভিডিয়ো সংরক্ষণ ব্যর্থ হয়েছে: ${errMsg}` 
+        : `Failed to save video: ${errMsg}`);
+    }
+  };
+
+  const deleteVideoData = async (id: string) => {
+    const confirmMsg = language === 'bn' 
+      ? 'আপনি কি নিশ্চিত যে এই ভিডিওটি মুছে ফেলতে চান?' 
+      : 'Are you sure you want to delete this project video?';
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      await deleteDoc(doc(db, 'project_videos', id));
+    } catch (err) {
+      console.error("Error deleting video:", err);
+    }
+  };
 
   const permanentNotices = notices?.filter(n => n.active && !n.expiryDate) || [];
   const activeBulletins = notices?.filter(n => n.active) || [];
@@ -2073,6 +2355,19 @@ export default function Login({ onRegisterClick }: LoginProps) {
                 <BookOpen className="h-3.5 w-3.5 text-amber-400" />
                 <span>{language === 'bn' ? 'আমাদের সুবিধা (About)' : 'App Brochure'}</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('videos')}
+                className={`px-4 py-2 rounded-lg text-xs font-bold font-mono tracking-wider transition-all uppercase flex items-center gap-1.5 ${
+                  activeTab === 'videos' 
+                    ? 'bg-emerald-950 border border-emerald-500/50 text-[#D4AF37] shadow-lg shadow-emerald-950/50' 
+                    : 'text-slate-400 hover:text-white hover:bg-neutral-900 border border-transparent'
+                }`}
+              >
+                <Video className="h-3.5 w-3.5 text-rose-500" />
+                <span>{language === 'bn' ? 'প্রকল্প লাইভ ভিডিও' : 'Project Live Videos'}</span>
+              </button>
             </div>
 
             {/* TAB CONTENT SCREEN */}
@@ -2096,7 +2391,7 @@ export default function Login({ onRegisterClick }: LoginProps) {
                             }`}
                           >
                             <img
-                              src={imgUrl}
+                              src={imgUrl || null}
                               alt={`3D Render Slide ${i + 1}`}
                               className={`w-full h-full object-cover select-none ${
                                 isActive ? 'animate-ken-burns-zoom' : ''
@@ -2178,7 +2473,7 @@ export default function Login({ onRegisterClick }: LoginProps) {
                 <div className="space-y-4 animate-fade-in text-xs">
                   <div className="relative rounded-xl border border-emerald-900/45 bg-neutral-950 overflow-hidden shadow-2xl">
                     <img 
-                      src={config.constructionImg || constructionImg} 
+                      src={config.constructionImg || constructionImg || null} 
                       alt="Current construction progress at Khetasar Cumilla" 
                       className="w-full aspect-video object-cover transition-transform duration-700 hover:scale-[1.03]"
                       referrerPolicy="no-referrer"
@@ -2251,7 +2546,7 @@ export default function Login({ onRegisterClick }: LoginProps) {
                       )}
                       {leader.photo ? (
                         <img 
-                          src={leader.photo} 
+                          src={leader.photo || null} 
                           alt={leader.nameEn} 
                           className="h-12 w-12 shrink-0 rounded-full object-cover border-2 border-emerald-900" 
                           referrerPolicy="no-referrer"
@@ -2363,7 +2658,7 @@ export default function Login({ onRegisterClick }: LoginProps) {
                           {notice.image && (
                             <div className="mt-2 text-center">
                               <img 
-                                src={notice.image} 
+                                src={notice.image || null} 
                                 alt={notice.title} 
                                 className="max-h-48 max-w-full rounded-lg object-cover mx-auto border border-emerald-950/45 shadow"
                                 referrerPolicy="no-referrer"
@@ -2718,6 +3013,261 @@ export default function Login({ onRegisterClick }: LoginProps) {
                   </div>
                 );
               })()}
+
+              {activeTab === 'videos' && (
+                <div className="space-y-4 animate-fade-in text-xs">
+                  
+                  {/* Title Header area */}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-2 border-b border-emerald-950">
+                    <div>
+                      <h3 className="text-xs font-black uppercase tracking-wider text-white font-mono flex items-center gap-1.5">
+                        <Video className="h-4 w-4 text-emerald-400 animate-pulse" />
+                        <span>
+                          {language === 'bn' ? 'প্রকল্পের গুরুত্বপূর্ণ লাইভ ভিডিওসমূহ' : 'Project Live Media Hub'}
+                        </span>
+                      </h3>
+                      <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                        {language === 'bn' 
+                          ? 'আস্থা টুইন টাওয়ার্স খেতাসার কোয়ার্টার নির্মাণ ও উন্নয়নকাজের সরাসরি ভিডিও সংগ্রহশালা।' 
+                          : 'Official live progress streams, milestones, and architectural updates of the towers.'}
+                      </p>
+                    </div>
+
+                    {adminEditorActive && (
+                      <button
+                        type="button"
+                        onClick={handleOpenAddVideo}
+                        className="flex items-center gap-1 text-[10px] bg-emerald-950 hover:bg-emerald-900 font-bold border border-emerald-500/50 text-emerald-400 rounded px-3 py-1.5 uppercase font-[#D4AF37] font-mono cursor-pointer"
+                      >
+                        <Plus className="h-3.5 w-3.5 text-emerald-400" />
+                        <span>{language === 'bn' ? 'নতুন ভিডিও যোগ করুন' : 'Upload Video'}</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* SEARCH AND FILTERS TOOLBAR */}
+                  <div className="bg-neutral-950/45 border border-emerald-950 p-3 rounded-xl flex flex-col gap-3 md:flex-row md:items-center md:justify-between text-xs font-sans">
+                    {/* Search Input Box */}
+                    <div className="relative flex-1 max-w-md">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500 font-bold" />
+                      <input
+                        type="text"
+                        className="w-full bg-slate-900 border border-slate-755/90 rounded-lg py-1.5 pl-9 pr-8 text-[11px] font-medium text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                        placeholder={language === 'bn' ? 'শিরোনাম, প্রকল্প অথবা বিবরণী দিয়ে খুজুন...' : 'Search videos by title, project, or description...'}
+                        value={videoSearchQuery}
+                        onChange={(e) => setVideoSearchQuery(e.target.value)}
+                      />
+                      {videoSearchQuery && (
+                        <button 
+                          onClick={() => setVideoSearchQuery('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Category Horizontal Badges */}
+                    <div className="flex gap-1 overflow-x-auto pb-0.5 md:pb-0 scrollbar-none">
+                      <button
+                        onClick={() => setVideoSelectedCategory('All')}
+                        className={`rounded-full px-2.5 py-1 text-[10px] font-bold tracking-tight border transition-all cursor-pointer whitespace-nowrap ${
+                          videoSelectedCategory === 'All' 
+                            ? 'bg-emerald-700/80 text-white border-emerald-500' 
+                            : 'bg-neutral-900 text-slate-400 border-slate-800 hover:bg-[#043327]/30 hover:text-white'
+                        }`}
+                      >
+                        {language === 'bn' ? 'সকল ক্যাটাগরি' : 'All Updates'}
+                      </button>
+                      {CATEGORIES.map(cat => (
+                        <button
+                          key={cat}
+                          onClick={() => setVideoSelectedCategory(cat)}
+                          className={`rounded-full px-2.5 py-1 text-[10px] font-bold tracking-tight border transition-all cursor-pointer whitespace-nowrap ${
+                            videoSelectedCategory === cat 
+                              ? 'bg-emerald-700/80 text-white border-emerald-500' 
+                              : 'bg-neutral-900 text-slate-400 border-slate-800 hover:bg-[#043327]/30 hover:text-white'
+                          }`}
+                        >
+                          {language === 'bn' 
+                            ? (cat === 'Construction Progress' ? 'নির্মাণ অগ্রগতি' : 
+                               cat === 'Architectural Tour' ? 'স্থাপত্য নকশা ট্যুর' : 
+                               cat === 'Security Briefing' ? 'নিরাপত্তা তথ্য' : 
+                               cat === 'Society Events' ? 'সোসাইটি অনুষ্ঠান' : 'সাধারণ কমপ্লেক্স') 
+                            : cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {videosLoading ? (
+                    <div className="flex flex-col items-center justify-center p-8 space-y-2 bg-neutral-950/20 border border-emerald-950 rounded-xl animate-pulse">
+                      <div className="h-6 w-6 rounded-full border-2 border-emerald-400/30 border-t-emerald-500 animate-spin" />
+                      <span className="text-[10px] text-slate-500 font-mono uppercase tracking-widest leading-none">Syncing database collections...</span>
+                    </div>
+                  ) : videos.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 px-4 text-center rounded-xl border border-dashed border-emerald-950 bg-neutral-950/20">
+                      <Video className="h-8 w-8 text-slate-700 animate-bounce mb-2" />
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">{language === 'bn' ? 'কোন ভিডিও ফাইল নেই' : 'No Media Records Posted'}</h4>
+                      <p className="text-[10px] text-slate-500 font-sans max-w-sm mt-1">
+                        {language === 'bn' 
+                          ? 'ডাটাবেজে কোন ভিডিও রেকর্ড যুক্ত করা হয়নি।' 
+                          : 'There are currently no videos linked in the project directory.'}
+                      </p>
+                    </div>
+                  ) : (() => {
+                    const filtered = videos.filter(v => {
+                      const matchesSearch = v.title.toLowerCase().includes(videoSearchQuery.toLowerCase()) || 
+                                            v.description.toLowerCase().includes(videoSearchQuery.toLowerCase()) || 
+                                            v.projectName.toLowerCase().includes(videoSearchQuery.toLowerCase());
+                      const matchesCategory = videoSelectedCategory === 'All' || v.category === videoSelectedCategory;
+                      return matchesSearch && matchesCategory;
+                    });
+
+                    // Pin Featured Video (If explicitly checked, or the absolute latest video)
+                    const featuredVideo = filtered.find(v => v.isFeatured) || filtered[0];
+                    const displayedVideos = filtered.filter(v => v.id !== (videoSelectedCategory === 'All' && videoSearchQuery === '' ? featuredVideo?.id : ''));
+
+                    return (
+                      <div className="space-y-4">
+                        {/* FEATURED VIDEO SPOTLIGHT HERO CARD */}
+                        {featuredVideo && videoSearchQuery === '' && videoSelectedCategory === 'All' && (
+                          <div className="rounded-xl border border-emerald-950 bg-[#064e3b]/10 hover:border-emerald-900 transition-all p-4 shadow-xl relative overflow-hidden grid grid-cols-1 md:grid-cols-12 gap-4">
+                            {/* Badge Overlay */}
+                            <div className="absolute top-3 left-3 z-10 flex items-center gap-1 rounded bg-amber-500 border border-amber-600 px-1.5 py-0.5 text-[8px] font-bold text-slate-950 uppercase tracking-wider font-mono">
+                              <Sparkles className="h-2.5 w-2.5 fill-slate-950 text-slate-950" />
+                              <span>{language === 'bn' ? 'নির্বাচিত ছবি/ভিডিও' : 'Featured Spotlight'}</span>
+                            </div>
+
+                            {/* Left Video Thumbnail area */}
+                            <div 
+                              onClick={() => setActiveWatchVideo(featuredVideo)}
+                              className="md:col-span-7 relative rounded-lg border border-slate-800 bg-neutral-900 overflow-hidden cursor-pointer group shadow-lg aspect-video"
+                            >
+                              <img 
+                                src={featuredVideo.thumbnail} 
+                                alt={featuredVideo.title} 
+                                className="w-full h-full object-cover transition-transform duration-505 group-hover:scale-105"
+                                referrerPolicy="no-referrer"
+                              />
+                              <div className="absolute inset-0 bg-black/45 group-hover:bg-black/25 transition-all flex items-center justify-center">
+                                <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-emerald-600 group-hover:bg-emerald-500 group-hover:scale-110 flex items-center justify-center text-white shadow-xl transition-all border border-emerald-400">
+                                  <Play className="h-4 w-4 sm:h-5 sm:w-5 fill-white translate-x-0.5" />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Right Video Info Area */}
+                            <div className="md:col-span-5 flex flex-col justify-between space-y-2">
+                              <div className="space-y-1.5">
+                                <div className="flex flex-wrap gap-1 font-mono text-[9px] uppercase font-bold">
+                                  <span className="rounded bg-emerald-950 text-emerald-300 border border-emerald-900 px-1.5 py-0.5">
+                                    {featuredVideo.projectName}
+                                  </span>
+                                  <span className="rounded bg-neutral-900 text-slate-400 border border-slate-800 px-1.5 py-0.5">
+                                    {featuredVideo.category}
+                                  </span>
+                                </div>
+                                <h4 className="text-xs font-bold text-white leading-normal line-clamp-2">
+                                  {featuredVideo.title}
+                                </h4>
+                                <p className="text-[10px] text-slate-400 leading-normal line-clamp-3">
+                                  {featuredVideo.description || (language === 'bn' ? 'কোন বিস্তারিত বিবরণ নেই।' : 'No descriptive overview recorded.')}
+                                </p>
+                              </div>
+
+                              <div className="flex items-center justify-between text-[9px] font-mono border-t border-emerald-950/40 pt-2 text-slate-500">
+                                <span>{featuredVideo.uploadDate}</span>
+                                {adminEditorActive && (
+                                  <div className="flex gap-1.5">
+                                    <button 
+                                      type="button"
+                                      onClick={() => handleOpenEditVideo(featuredVideo)}
+                                      className="text-amber-500 hover:text-amber-400 font-bold"
+                                    >
+                                      {language === 'bn' ? 'সম্পাদনা' : 'Edit'}
+                                    </button>
+                                    <button 
+                                      type="button"
+                                      onClick={() => deleteVideoData(featuredVideo.id)}
+                                      className="text-rose-500 hover:text-rose-400 font-bold"
+                                    >
+                                      {language === 'bn' ? 'মুছুন' : 'Delete'}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* OTHER VIDEOS GRID */}
+                        {filtered.length === 0 ? (
+                          <div className="p-4 text-center text-[10px] text-slate-500 font-mono bg-neutral-900/30 rounded-xl border border-dashed border-emerald-950">
+                            {language === 'bn' ? 'ম্যাচিং কোন ভিডিও পাওয়া যায়নি।' : 'No matching video progress updates.'}
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-emerald-950">
+                            {displayedVideos.map(video => (
+                              <div key={video.id} className="p-3 rounded-lg border border-emerald-950/45 bg-neutral-900/40 hover:border-emerald-800 hover:scale-[1.01] transition-all flex flex-col space-y-2 relative group">
+                                <div 
+                                  onClick={() => setActiveWatchVideo(video)}
+                                  className="relative aspect-video rounded-md bg-neutral-950 border border-emerald-950 overflow-hidden cursor-pointer shadow"
+                                >
+                                  <img 
+                                    src={video.thumbnail} 
+                                    alt={video.title} 
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-103"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                  <div className="absolute inset-0 bg-black/45 group-hover:bg-black/20 transition-all flex items-center justify-center">
+                                    <div className="h-8 w-8 rounded-full bg-emerald-600/95 group-hover:bg-emerald-500 flex items-center justify-center text-white border border-emerald-400/50">
+                                      <Play className="h-3 w-3 fill-white translate-x-0.5" />
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <div className="flex gap-1.5 font-mono text-[8px] uppercase">
+                                    <span className="text-emerald-400">{video.projectName}</span>
+                                    <span className="text-slate-500">•</span>
+                                    <span className="text-slate-400">{video.category}</span>
+                                  </div>
+                                  <h4 className="text-[11px] font-bold text-white line-clamp-1 group-hover:text-emerald-400 transition-colors">
+                                    {video.title}
+                                  </h4>
+                                </div>
+
+                                <div className="flex items-center justify-between text-[9px] font-mono text-slate-500 border-t border-emerald-950/20 pt-2 mt-auto">
+                                  <span>{video.uploadDate}</span>
+                                  {adminEditorActive && (
+                                    <div className="flex gap-2">
+                                      <button 
+                                        type="button"
+                                        onClick={() => handleOpenEditVideo(video)}
+                                        className="text-amber-500 hover:text-amber-400 font-bold"
+                                      >
+                                        {language === 'bn' ? 'সংশোধন' : 'Edit'}
+                                      </button>
+                                      <button 
+                                        type="button"
+                                        onClick={() => deleteVideoData(video.id)}
+                                        className="text-rose-500 hover:text-rose-400 font-bold"
+                                      >
+                                        {language === 'bn' ? 'মুছুন' : 'Delete'}
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           </div>
           
@@ -3851,6 +4401,223 @@ export default function Login({ onRegisterClick }: LoginProps) {
             <p className="text-[9px] text-slate-500 font-mono italic leading-normal text-center pt-1">
               * This sandbox outbox intercepts real-time SMTP emails to display OTPs inside your current preview session instantly.
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* 🎬 WATCH VIDEO POPUP OVERLAY MODAL */}
+      {activeWatchVideo && (
+        <div className="fixed inset-0 bg-neutral-950/85 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fade-in print:hidden">
+          
+          <div className="w-full max-w-4xl bg-neutral-900 border border-emerald-950 rounded-2xl overflow-hidden shadow-2xl relative flex flex-col">
+            {/* Modal Heading Control bar */}
+            <div className="bg-neutral-950 px-5 py-4 border-b border-emerald-950/60 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Tv className="h-4 w-4 text-emerald-400" />
+                <span className="text-[10px] uppercase font-mono tracking-widest text-[#D4AF37] font-bold">
+                  {activeWatchVideo.projectName} • {activeWatchVideo.category}
+                </span>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setActiveWatchVideo(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-neutral-900 transition-colors cursor-pointer"
+                title="Close Player"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Sub Content Frame / Player layout */}
+            <div className="aspect-video w-full bg-black relative">
+              {activeWatchVideo.youtubeUrl ? (
+                <iframe
+                  className="w-full h-full border-none"
+                  src={getYoutubeEmbedUrl(activeWatchVideo.youtubeUrl)}
+                  title={activeWatchVideo.title}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              ) : activeWatchVideo.facebookUrl ? (
+                <iframe
+                  className="w-full h-full border-none"
+                  src={getFacebookEmbedUrl(activeWatchVideo.facebookUrl) || undefined}
+                  scrolling="no"
+                  frameBorder="0"
+                  allowFullScreen={true}
+                  allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-center p-8 bg-neutral-900 border-t border-b border-emerald-950/20">
+                  <span className="text-xs text-slate-300 font-sans mb-4 max-w-sm leading-relaxed px-4">
+                    {language === 'bn' ? 'কোনো ভিডিও লিংক পাওয়া যায়নি।' : 'No playable link. Please check direct settings.'}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Video description text box footer */}
+            <div className="bg-neutral-950 p-5 border-t border-emerald-950/60 space-y-2 max-h-[160px] overflow-y-auto">
+              <h3 className="text-sm font-extrabold text-white leading-snug">{activeWatchVideo.title}</h3>
+              <p className="text-xs text-slate-400 leading-relaxed font-sans">{activeWatchVideo.description}</p>
+              <div className="text-[10px] text-emerald-500 font-mono mt-1">Uploaded Date: {activeWatchVideo.uploadDate}</div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* 🛠️ UPLOAD / EDIT VIDEO DIALOG MODAL */}
+      {showVideoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <div className="w-full max-w-lg rounded-xl border border-[#D4AF37]/45 bg-neutral-950 p-6 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-emerald-950 font-mono">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                <Video className="h-4 w-4 text-emerald-400" />
+                <span>
+                  {editingVideo 
+                    ? (language === 'bn' ? 'ভিডিও তথ্য পরিবর্তন করুন' : 'Edit Project Video') 
+                    : (language === 'bn' ? 'নতুন ভিডিও ফাইল যুক্ত করুন' : 'Register New Progress Video')}
+                </span>
+              </h3>
+              <button type="button" onClick={() => setShowVideoModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {videoFormError && (
+              <div className="p-3 bg-rose-950/30 border border-rose-900 text-rose-400 rounded text-xs">
+                {videoFormError}
+              </div>
+            )}
+
+            <form onSubmit={saveVideoData} className="space-y-3 text-xs font-sans">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-mono font-bold text-slate-400 block">Video Title</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Tower 1 Concrete Slab Casting Complete / ছাঁদ ঢালাই"
+                    value={videoTitle}
+                    onChange={(e) => setVideoTitle(e.target.value)}
+                    className="block w-full rounded-md border border-emerald-950 bg-neutral-900 py-2 px-3 text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-mono font-bold text-slate-400 block">Relative Project Spec</label>
+                  <select
+                    value={videoProjectName}
+                    onChange={(e) => setVideoProjectName(e.target.value)}
+                    className="block w-full rounded-md border border-emerald-950 bg-neutral-900 py-2 px-3 text-white focus:border-emerald-500 focus:outline-none"
+                  >
+                    <option value="Tower 1">Tower A (Tower 1)</option>
+                    <option value="Tower 2">Tower B (Tower 2)</option>
+                    <option value="Twin Towers Complex">Twin Towers Complex (Compound)</option>
+                    <option value="Underground Parking">Underground Double Basements</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-mono font-bold text-slate-400 block">Advisory Video Category</label>
+                  <select
+                    value={videoCategory}
+                    onChange={(e) => setVideoCategory(e.target.value)}
+                    className="block w-full rounded-md border border-emerald-950 bg-neutral-900 py-2 px-3 text-white focus:border-emerald-500 focus:outline-none"
+                  >
+                    {CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-mono font-bold text-slate-400 block">Feature Spotlight Pinned</label>
+                  <div className="flex items-center gap-2 mt-2">
+                    <input
+                      type="checkbox"
+                      id="videoIsFeatured"
+                      checked={videoIsFeatured}
+                      onChange={(e) => setVideoIsFeatured(e.target.checked)}
+                      className="rounded border-emerald-950 text-emerald-600 focus:ring-emerald-500 h-4 w-4 bg-neutral-900 cursor-pointer"
+                    />
+                    <label htmlFor="videoIsFeatured" className="text-[11px] text-slate-300 font-mono cursor-pointer select-none">
+                      Pin Video to Highlights Top
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-mono font-bold text-slate-400 block">YouTube Video URL (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="https://www.youtube.com/watch?v=VIDEO_ID or youtu.be"
+                  value={videoYoutubeUrl}
+                  onChange={(e) => setVideoYoutubeUrl(e.target.value)}
+                  className="block w-full rounded-md border border-emerald-950 bg-neutral-900 py-2 px-3 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-mono font-bold text-slate-400 block">Facebook Watch URL (Optional alternative)</label>
+                <input
+                  type="text"
+                  placeholder="https://www.facebook.com/username/videos/xxx/"
+                  value={videoFacebookUrl}
+                  onChange={(e) => setVideoFacebookUrl(e.target.value)}
+                  className="block w-full rounded-md border border-emerald-950 bg-neutral-900 py-2 px-3 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-mono font-bold text-slate-400 block">Video Cover Thumbnail Unsplash Image</label>
+                <select
+                  value={videoThumbnailUrl}
+                  onChange={(e) => setVideoThumbnailUrl(e.target.value)}
+                  className="block w-full rounded-md border border-emerald-950 bg-neutral-900 py-2 px-3 text-white focus:border-emerald-500 focus:outline-none mb-1.5"
+                >
+                  {PRESET_THUMBNAILS.map(preset => (
+                    <option key={preset.url} value={preset.url}>{preset.label}</option>
+                  ))}
+                </select>
+                <div className="h-20 w-fit rounded-lg overflow-hidden border border-emerald-950/50">
+                  <img src={videoThumbnailUrl} alt="Thumbnail preview" className="h-full aspect-video object-cover" />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-mono font-bold text-slate-400 block">Detailed description / পরিমাপ ও বিবরণী</label>
+                <textarea
+                  rows={2}
+                  placeholder="Briefly summarize what this live construction update covers..."
+                  value={videoDescription}
+                  onChange={(e) => setVideoDescription(e.target.value)}
+                  className="block w-full rounded-md border border-emerald-950 bg-neutral-900 py-2 px-3 text-white focus:border-emerald-500 focus:outline-none resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-2 border-t border-emerald-950/40">
+                <button
+                  type="button"
+                  onClick={() => setShowVideoModal(false)}
+                  className="px-3.5 py-2 rounded bg-neutral-900 text-slate-400 hover:text-white border border-slate-800 font-bold tracking-wider cursor-pointer"
+                >
+                  {language === 'bn' ? 'বাতিল' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  disabled={videoIsSubmitting}
+                  className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold tracking-wider cursor-pointer disabled:opacity-50"
+                >
+                  {videoIsSubmitting ? '...' : (language === 'bn' ? 'সংরক্ষণ করুন' : 'Confirm & Save')}
+                </button>
+              </div>
+
+            </form>
           </div>
         </div>
       )}

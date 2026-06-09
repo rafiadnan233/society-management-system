@@ -422,7 +422,12 @@ const DEFAULT_USER_ACCOUNTS: UserAccount[] = [
 
 export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
+    if (tabParam) return tabParam;
+    return 'dashboard';
+  });
   const [language, setLanguageState] = useState<'en' | 'bn'>('en');
 
   // Entities stored in LocalStorage for persistence
