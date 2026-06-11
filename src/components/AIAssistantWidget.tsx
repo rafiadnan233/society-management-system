@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSociety } from '../context/SocietyContext';
-import { MessageSquare, X, Send, Sparkles, User, HelpCircle, Loader2, RefreshCw, Volume2, Building, ArrowRight } from 'lucide-react';
+import { MessageSquare, X, Send, Sparkles, User, HelpCircle, Loader2, RefreshCw, Volume2, Building, ArrowRight, Smile, Hand, BookOpen, ChevronDown, ChevronUp, ChevronRight, CreditCard, ShieldCheck, AlertCircle, Clock } from 'lucide-react';
 
 interface ChatMessage {
   id: string;
@@ -9,12 +9,101 @@ interface ChatMessage {
   timestamp: string;
 }
 
+const FAQ_CATEGORIES = [
+  {
+    id: 'payments',
+    titleBn: '💳 মেইনটেইন্যান্স ও বিল',
+    titleEn: '💳 Payment Issues',
+    faqs: [
+      {
+        qBn: 'মাসিক মেইনটেইন্যান্স ফি প্রদানের শেষ সময় কবে?',
+        qEn: 'When is the monthly maintenance fee due and what is late fee?',
+        aBn: 'প্রতি মাসের ১০ তারিখের মধ্যে আপনার নির্ধারিত ফ্ল্যাটের মেইনটেইন্যান্স বিল পরিশোধ করতে হবে। ১৫ তারিখ পার হয়ে গেলে বিলম্বে শাস্তিমূলক ফি বা চার্জ প্রযোজ্য হতে পারে।',
+        aEn: 'The monthly maintenance fee must be paid by the 10th of every month. Late feeds/charges may apply after the 15th.'
+      },
+      {
+        qBn: 'কোন কোন মাধ্যমে ফি পরিশোধ করা যাবে?',
+        qEn: 'What payment methods are supported for bills?',
+        aBn: 'আপনি সরাসরি আপনার ড্যাশবোর্ডের "Payments" ট্যাব থেকে bKash, Nagad মোবাইল ওয়ালেট অথবা সরাসরি ক্যাশ ট্রানজেকশন পেইমেন্ট হিসেবে সোসাইটিতে অর্থ জমা দিতে পারবেন।',
+        aEn: 'You can pay directly through your resident portal dashboard using mobile wallets like bKash/Nagad, or via Cash.'
+      },
+      {
+        qBn: 'পেমেন্ট রশিদ বা মানি রিসিট কীভাবে পাব?',
+        qEn: 'How can I collect my formal payment receipt?',
+        aBn: 'পেমেন্ট সম্পন্ন হওয়ার পর সিস্টেম স্বয়ংক্রিয়ভাবে একটি প্রিন্টযোগ্য ফর্মাল ডিজিটাল রিসিট জেনারেট করে যা আপনি যেকোনো সময় ডাউনলোড করতে পারেন।',
+        aEn: 'After a successful payment, the system automatically generates a printable digital receipt for download.'
+      }
+    ]
+  },
+  {
+    id: 'visitors',
+    titleBn: '🚧 গেট ও সিকিউরিটি নিয়মনীতি',
+    titleEn: '🚧 Gate Rules & Visitors',
+    faqs: [
+      {
+        qBn: 'মেহমান বা গেস্ট আসার কি কোনো পূর্বঅনুমোদন লাগবে?',
+        qEn: 'Do visitors need any prior approval from residents?',
+        aBn: 'নিরাপত্তা নিশ্চিত করার জন্য গেটে মেহমানদের রেজিষ্ট্রেশন করতে হয়। বাসিন্দারা চাইলে যেকোনো পূর্বপ্রস্তুতির জন্য আগেই Online Visitor Pass টিকিট তৈরি করে রাখতে পারেন।',
+        aEn: 'To ensure campus security, all guests must register at the gate. Residents can optionally generate an online pre-arrival Pass to bypass delay.'
+      },
+      {
+        qBn: 'ডেলিভারি পার্টনার বা বা কুরিয়ার কীভাবে ফ্ল্যাট পর্যন্ত পৌঁছাবে?',
+        qEn: 'How do delivery riders and couriers reach the flat?',
+        aBn: 'সকল কুরিয়ার ও ডেলিভারি পার্টনারদের মেইন গেট কাউন্টারে এন্ট্রি দিতে হবে এবং ইন্টারকম বা সিকিউরিটি কর্তাদের মাধ্যমে বাসিন্দা সবুজ সংকেত দিলে তবেই প্রবেশাধিকার পাবে।',
+        aEn: 'All delivery partners must report at the main entrance gate. Security will verify with the resident via intercom/system before entry.'
+      }
+    ]
+  },
+  {
+    id: 'complaints',
+    titleBn: '🛠️ অভিযোগ ও সেবা টিকিট',
+    titleEn: '🛠️ Complaints Box',
+    faqs: [
+      {
+        qBn: 'পানির লাইনে লিকেজ বা প্লাম্বিং সমস্যা হলে কী ব্যবস্থা আছে?',
+        qEn: 'What should I do if there is a water leak or plumbing issue?',
+        aBn: 'আপনি ড্যাশবোর্ড থেকে "Complaints" সেকশনে গিয়ে পানির লাইন, বৈদ্যুতিক ত্রুটি বা লিফট বিষয়ক যেকোনো সমস্যার টিকিট ওপেন করতে পারেন।',
+        aEn: 'You can go to the "Complaints" section of your resident panel and submit an immediate ticket for plumbing, electric, or utility issues.'
+      },
+      {
+        qBn: 'তদন্ত কতক্ষণের মধ্যে সম্পন্ন করা হয়?',
+        qEn: 'How long does complaint investigation and repair take?',
+        aBn: 'সাধারণত টিকিট জেনারেশনের ১২ ঘণ্টার মধ্যে আমাদের সাপোর্ট কারিগর বা ইলেক্ট্রিশিয়ান দল তদন্ত শুরু করে এবং অগ্রাধিকার ভিত্তিতে সমাধান করে।',
+        aEn: 'Our technical support staff or plumber team typically initiates an investigation within 12 hours of priority ticket submission.'
+      }
+    ]
+  },
+  {
+    id: 'rules',
+    titleBn: '🌙 কুয়ায়েট আওয়ার্স ও কমন এরিয়া',
+    titleEn: '🌙 Quiet Hours & Shared Areas',
+    faqs: [
+      {
+        qBn: 'শান্ত ঘন্টা বা Quiet Hours এর সময়সূচী কোনটি?',
+        qEn: 'What are the quiet hours in Astha Twin Towers?',
+        aBn: 'আমাদের আবাসিক এলাকায় প্রতিদিন রাত ১০:০০ টা থেকে সকাল ৬:০০ টা পর্যন্ত শান্ত ঘন্টা বলবৎ থাকে। এই সময় উচ্চ শব্দকারী সকল কার্যক্রম নিষিদ্ধ।',
+        aEn: 'Quiet hours are observed daily from 10:00 PM to 6:00 AM. Loud sounds, music, or disturbances are strictly prohibited during this frame.'
+      },
+      {
+        qBn: 'কমিউনিটি হল রুম বুক করার নিয়ম কী?',
+        qEn: 'How do I book the community room or rooftop for an event?',
+        aBn: 'ব্যক্তিগত অনুষ্ঠান বা সামাজিক সভার জন্য অন্তত ৭ দিন পূর্বে ক্যালেন্ডার শিডিউল চেক করে সোসাইটি কার্যনির্বাহী কমিটির মাধ্যমে আবেদন করুন।',
+        aEn: 'To reserve the community hall or rooftop garden, please check scheduling availability and submit an application to the society committee 7 days prior.'
+      }
+    ]
+  }
+];
+
 export default function AIAssistantWidget() {
   const { language } = useSociety();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showHelloTooltip, setShowHelloTooltip] = useState(true);
+  const [activeTab, setActiveTab] = useState<'help' | 'chat'>('help');
+  const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>('payments');
+  const [expandedFaqIdx, setExpandedFaqIdx] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Default welcome message based on selected language (bn/en)
@@ -193,62 +282,195 @@ export default function AIAssistantWidget() {
             <span>Khetasar, Cumilla, BD — Powered by Gemini AI</span>
           </div>
 
-          {/* Message Area viewport */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-neutral-950 to-neutral-900 scrollbar-thin scrollbar-thumb-emerald-950 pr-2">
-            {messages.map((msg) => (
-              <div 
-                key={msg.id} 
-                className={`flex gap-2.5 max-w-[85%] ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}
-              >
-                {/* User/Bot Avatar Icon */}
-                <div className={`h-7 w-7 rounded-lg shrink-0 flex items-center justify-center ${
-                  msg.role === 'user' 
-                    ? 'bg-emerald-950 ring-1 ring-emerald-400' 
-                    : 'bg-neutral-900 ring-1 ring-amber-500'
-                }`}>
-                  {msg.role === 'user' ? (
-                    <User className="h-3.5 w-3.5 text-emerald-400" />
-                  ) : (
-                    <Sparkles className="h-3.5 w-3.5 text-[#D4AF37]" />
-                  )}
-                </div>
+          {/* Quick Help Menu vs AI Chat Tab Controller Bar */}
+          <div className="flex bg-neutral-900/95 border-b border-emerald-950/70 p-1 gap-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab('help')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-mono uppercase font-black tracking-wider transition-all rounded-lg cursor-pointer ${
+                activeTab === 'help'
+                  ? 'bg-gradient-to-r from-emerald-950/60 to-neutral-900 text-emerald-400 border border-emerald-800/40 shadow-inner'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-neutral-900/50'
+              }`}
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              <span>{language === 'bn' ? 'সহায়তা মেনু' : 'Quick Help'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('chat')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-mono uppercase font-black tracking-wider transition-all rounded-lg cursor-pointer ${
+                activeTab === 'chat'
+                  ? 'bg-gradient-to-r from-emerald-950/60 to-neutral-900 text-emerald-400 border border-emerald-800/40 shadow-inner'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-neutral-900/50'
+              }`}
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              <span>{language === 'bn' ? 'এআই চ্যাট' : 'AI Chat'}</span>
+            </button>
+          </div>
 
-                {/* Message bubble outline */}
-                <div className="space-y-1">
-                  <div className={`p-3 rounded-2xl text-[11px] leading-relaxed break-words whitespace-pre-wrap ${
-                    msg.role === 'user' 
-                      ? 'bg-emerald-950/70 text-emerald-100 rounded-tr-none border border-emerald-900/30 shadow-md' 
-                      : 'bg-neutral-900/95 text-slate-200 rounded-tl-none border border-slate-800/65 shadow-md shadow-emerald-950/5'
-                  }`}>
-                    {msg.text}
-                  </div>
-                  <span className={`text-[8.5px] font-mono text-slate-500 block ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-                    {msg.timestamp}
-                  </span>
-                </div>
+          {/* Quick Help Menu Directory Panel */}
+          {activeTab === 'help' && (
+            <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-gradient-to-b from-neutral-950 to-neutral-900 scrollbar-thin scrollbar-thumb-emerald-950 pr-2 animate-fade-in">
+              {/* Introduction Header banner inside Help */}
+              <div className="p-3 bg-emerald-950/15 border border-emerald-900/30 rounded-xl text-center space-y-1">
+                <span className="text-[10px] font-mono font-bold text-[#D4AF37] tracking-widest uppercase flex items-center justify-center gap-1.5">
+                  <BookOpen className="h-3.5 w-3.5 text-amber-500 animate-pulse" />
+                  <span>{language === 'bn' ? 'আস্থা গাইডবুক (Quick FAQ)' : 'Astha Quick FAQ Directory'}</span>
+                </span>
+                <p className="text-[10px] text-slate-400 leading-normal">
+                  {language === 'bn' 
+                    ? 'নিচে ক্যাটাগরি অনুযায়ী সাধারণ প্রশ্নগুলোর সমাধান রয়েছে। যেকোনো প্রশ্নে ক্লিক করে সরাসরি উত্তর দেখুন।' 
+                    : 'Browse through our structured categories below. Click on any question to view formal instructions.'}
+                </p>
               </div>
-            ))}
 
-            {/* Simulated Gemini Typing Indicator */}
-            {loading && (
-              <div className="flex gap-2.5 max-w-[85%] mr-auto">
-                <div className="h-7 w-7 rounded-lg shrink-0 bg-neutral-900 ring-1 ring-amber-400/80 flex items-center justify-center">
-                  <Loader2 className="h-3.5 w-3.5 text-[#D4AF37] animate-spin" />
-                </div>
-                <div className="space-y-1">
-                  <div className="px-4 py-2 bg-neutral-900 border border-slate-800/40 rounded-2xl rounded-tl-none flex items-center gap-1 text-[10px] text-emerald-400 font-mono">
-                    <span className="animate-bounce delay-75">●</span>
-                    <span className="animate-bounce delay-150">●</span>
-                    <span className="animate-bounce delay-300">●</span>
-                    <span className="text-[8.5px] text-slate-500 font-mono ml-1.5">
-                      {language === 'bn' ? 'জেমিনি টাইপ করছে...' : 'Gemini is thinking...'}
+              {/* Categories Wrapper */}
+              <div className="space-y-2.5">
+                {FAQ_CATEGORIES.map((category) => {
+                  const isCatExpanded = expandedCategoryId === category.id;
+                  return (
+                    <div 
+                      key={category.id} 
+                      className="border border-emerald-950/80 bg-[#02100b]/45 rounded-xl overflow-hidden transition-all"
+                    >
+                      {/* Category Row Trigger header */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setExpandedCategoryId(isCatExpanded ? null : category.id);
+                          setExpandedFaqIdx(null); // Reset active internal faq
+                        }}
+                        className={`w-full flex items-center justify-between p-3 text-left transition-colors cursor-pointer select-none ${
+                          isCatExpanded ? 'bg-emerald-950/30 border-b border-emerald-950/40 text-emerald-400' : 'text-slate-300 hover:bg-neutral-900/40'
+                        }`}
+                      >
+                        <span className="text-[11px] font-bold font-sans tracking-wide">
+                          {language === 'bn' ? category.titleBn : category.titleEn}
+                        </span>
+                        {isCatExpanded ? (
+                          <ChevronUp className="h-4 w-4 text-[#D4AF37]" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-slate-500" />
+                        )}
+                      </button>
+
+                      {/* List of FAQs under Category */}
+                      {isCatExpanded && (
+                        <div className="p-2.5 space-y-2 bg-neutral-950/30 divide-y divide-emerald-950/25">
+                          {category.faqs.map((faq, idx) => {
+                            const isFaqExpanded = expandedFaqIdx === idx;
+                            return (
+                              <div key={idx} className={`${idx > 0 ? 'pt-2.5' : ''} space-y-1.5`}>
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedFaqIdx(isFaqExpanded ? null : idx)}
+                                  className="w-full flex items-start gap-2 text-left text-[10.5px] font-medium text-slate-300 hover:text-emerald-400 cursor-pointer select-none"
+                                >
+                                  <HelpCircle className="h-3.5 w-3.5 mt-0.5 text-amber-500 shrink-0" />
+                                  <span className="flex-1">{language === 'bn' ? faq.qBn : faq.qEn}</span>
+                                  {isFaqExpanded ? (
+                                    <ChevronUp className="h-3 w-3 mt-1 text-slate-500" />
+                                  ) : (
+                                    <ChevronDown className="h-3 w-3 mt-1 text-slate-500" />
+                                  )}
+                                </button>
+
+                                {isFaqExpanded && (
+                                  <div className="pl-5.5 space-y-2 text-[10.5px] leading-relaxed text-slate-400 animate-slide-down">
+                                    <p className="bg-neutral-900/85 border-l-2 border-amber-500 py-1.5 px-2.5 rounded-r-lg text-slate-300 font-sans">
+                                      {language === 'bn' ? faq.aBn : faq.aEn}
+                                    </p>
+                                    
+                                    {/* Interactive Prompt Sender Button */}
+                                    <div className="pt-0.5 flex justify-end">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const questionText = language === 'bn' ? faq.qBn : faq.qEn;
+                                          setActiveTab('chat');
+                                          sendMessage(questionText);
+                                        }}
+                                        className="flex items-center gap-1 px-3 py-1 bg-emerald-950/80 border border-emerald-700/60 hover:bg-emerald-900 text-emerald-400 hover:text-emerald-300 rounded-lg text-[9.5px] font-mono uppercase tracking-wider transition-all cursor-pointer shadow-sm"
+                                      >
+                                        <Sparkles className="h-3 w-3 text-amber-400 animate-pulse" />
+                                        <span>{language === 'bn' ? 'এআই কে বিস্তারিত জিজ্ঞাসা করুন' : 'Ask AI to elaborate'}</span>
+                                        <ArrowRight className="h-2.5 w-2.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Message Area viewport */}
+          {activeTab === 'chat' && (
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-neutral-950 to-neutral-900 scrollbar-thin scrollbar-thumb-emerald-950 pr-2">
+              {messages.map((msg) => (
+                <div 
+                  key={msg.id} 
+                  className={`flex gap-2.5 max-w-[85%] ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}
+                >
+                  {/* User/Bot Avatar Icon */}
+                  <div className={`h-7 w-7 rounded-lg shrink-0 flex items-center justify-center ${
+                    msg.role === 'user' 
+                      ? 'bg-emerald-950 ring-1 ring-emerald-400' 
+                      : 'bg-neutral-900 ring-1 ring-amber-500'
+                  }`}>
+                    {msg.role === 'user' ? (
+                      <User className="h-3.5 w-3.5 text-emerald-400" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5 text-[#D4AF37]" />
+                    )}
+                  </div>
+
+                  {/* Message bubble outline */}
+                  <div className="space-y-1">
+                    <div className={`p-3 rounded-2xl text-[11px] leading-relaxed break-words whitespace-pre-wrap ${
+                      msg.role === 'user' 
+                        ? 'bg-emerald-950/70 text-emerald-100 rounded-tr-none border border-emerald-900/30 shadow-md' 
+                        : 'bg-neutral-900/95 text-slate-200 rounded-tl-none border border-slate-800/65 shadow-md shadow-emerald-950/5'
+                    }`}>
+                      {msg.text}
+                    </div>
+                    <span className={`text-[8.5px] font-mono text-slate-500 block ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+                      {msg.timestamp}
                     </span>
                   </div>
                 </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
+              ))}
+
+              {/* Simulated Gemini Typing Indicator */}
+              {loading && (
+                <div className="flex gap-2.5 max-w-[85%] mr-auto">
+                  <div className="h-7 w-7 rounded-lg shrink-0 bg-neutral-900 ring-1 ring-amber-400/80 flex items-center justify-center">
+                    <Loader2 className="h-3.5 w-3.5 text-[#D4AF37] animate-spin" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="px-4 py-2 bg-neutral-900 border border-slate-800/40 rounded-2xl rounded-tl-none flex items-center gap-1 text-[10px] text-emerald-400 font-mono">
+                      <span className="animate-bounce delay-75">●</span>
+                      <span className="animate-bounce delay-150">●</span>
+                      <span className="animate-bounce delay-300">●</span>
+                      <span className="text-[8.5px] text-slate-500 font-mono ml-1.5">
+                        {language === 'bn' ? 'জেমিনি টাইপ করছে...' : 'Gemini is thinking...'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
 
           {/* Inline Suggestion Quick Prompts Chips */}
           <div className="p-3 bg-neutral-950/95 border-t border-emerald-950/30">
@@ -302,28 +524,64 @@ export default function AIAssistantWidget() {
         </div>
       )}
 
-      {/* Floating Sparkles Trigger Button */}
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        title={language === 'bn' ? 'আস্থা টুইন টাওয়ার এআই অ্যাসিস্ট্যান্ট' : 'Astha Twin Tower AI Assistant'}
-        className={`h-14 w-14 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 cursor-pointer ring-4 ring-emerald-400/10 ${
-          isOpen 
-            ? 'bg-neutral-950 text-emerald-400 border-2 border-red-500/70 hover:border-red-500' 
-            : 'bg-gradient-to-tr from-neutral-900 via-[#043327] to-neutral-800 text-emerald-400 border-2 border-emerald-500/80 hover:border-[#D4AF37]/90 hover:text-[#D4AF37]'
-        }`}
-      >
-        {isOpen ? (
-          <X className="h-6 w-6 animate-pulse" />
-        ) : (
-          <div className="relative">
-            <Sparkles className="h-6 w-6" />
-            <span className="absolute -top-1.5 -right-1.5 h-3.5 w-3.5 rounded-full bg-amber-500 text-[8px] font-black font-mono flex items-center justify-center text-neutral-950 animate-bounce">
-              AI
+      {/* Hello Greeting Tooltip Bubble */}
+      {!isOpen && showHelloTooltip && (
+        <div className="absolute right-18 bottom-1 flex items-center gap-2 bg-neutral-950 border border-emerald-400/90 text-emerald-300 py-2 px-3 rounded-xl shadow-[0_10px_30px_rgba(16,185,129,0.35)] animate-bounce select-none whitespace-nowrap z-50">
+          <div className="flex items-center gap-1.5">
+            <span className="text-amber-400 animate-pulse text-[12px]">👋</span>
+            <span className="font-mono text-[10.5px] font-black tracking-widest text-[#D4AF37]">
+              {language === 'bn' ? 'হ্যালো! প্রশ্ন করুন' : 'HELLO! ASK AI'}
             </span>
           </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowHelloTooltip(false);
+            }}
+            className="p-1 text-slate-500 hover:text-red-400 rounded-lg transition-colors cursor-pointer"
+            title={language === 'bn' ? 'বন্ধ করুন' : 'Hide'}
+          >
+            <X className="h-3 w-3" />
+          </button>
+          {/* Tooltip Corner Arrow */}
+          <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-neutral-950 border-r border-t border-emerald-400/90 rotate-45" />
+        </div>
+      )}
+
+      {/* Floating Sparkles Trigger Button with Glowing Protective Halo Aura */}
+      <div className="relative group/trigger">
+        {!isOpen && (
+          <>
+            {/* Double Radiant "Halo" Rings */}
+            <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-emerald-500 via-amber-400 to-emerald-600 opacity-75 blur animate-pulse" />
+            <div className="absolute -inset-2 rounded-full bg-gradient-to-r from-emerald-400/20 to-amber-400/20 opacity-40 blur-md animate-ping" />
+          </>
         )}
-      </button>
+        
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          title={language === 'bn' ? 'আস্থা টুইন টাওয়ার এআই অ্যাসিস্ট্যান্ট' : 'Astha Twin Tower AI Assistant'}
+          className={`h-15 w-15 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 transform hover:scale-110 active:scale-95 cursor-pointer ring-4 ring-emerald-400/20 relative z-10 ${
+            isOpen 
+              ? 'bg-neutral-950 text-emerald-400 border-2 border-red-500/70 hover:border-red-500' 
+              : 'bg-gradient-to-tr from-neutral-950 via-[#043d30] to-neutral-900 text-emerald-400 border-2 border-emerald-400/80 hover:border-amber-400 hover:text-amber-400'
+          }`}
+        >
+          {isOpen ? (
+            <X className="h-5.5 w-5.5 animate-pulse" />
+          ) : (
+            <div className="relative flex flex-col items-center justify-center">
+              <Smile className="h-5 w-5 text-amber-300 animate-pulse" />
+              <Sparkles className="h-3 w-3 text-emerald-400 absolute -top-1.5 -right-2 animate-bounce" />
+              <span className="text-[7.5px] font-mono font-black tracking-widest text-[#D4AF37] mt-0.5 uppercase">
+                Hello
+              </span>
+            </div>
+          )}
+        </button>
+      </div>
 
     </div>
   );

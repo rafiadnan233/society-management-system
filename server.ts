@@ -1,6 +1,5 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 
 // Initialize express application
@@ -169,6 +168,7 @@ app.post("/api/gemini/generate", async (req, res) => {
 async function initializeServer() {
   if (process.env.NODE_ENV !== "production") {
     console.log("Initializing server in Development Mode with Vite Middleware...");
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
