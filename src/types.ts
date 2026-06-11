@@ -183,6 +183,7 @@ export interface SocietyConfig {
   enableLateFee?: boolean;
   lateFeePercentage?: number;
   monthlyExpenseBudget?: number;
+  voiceSensitivity?: 'standard' | 'high';
 }
 
 export interface UserAccount {

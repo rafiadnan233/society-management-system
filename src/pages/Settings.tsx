@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { useSociety } from '../context/SocietyContext';
 import { translations } from '../utils/translations';
-import { Save, Settings as GearIcon, AlertCircle, Building, ShieldAlert, CreditCard, Users, Trash2, MessageSquare, Key, Check, X } from 'lucide-react';
+import { Save, Settings as GearIcon, AlertCircle, Building, ShieldAlert, CreditCard, Users, Trash2, MessageSquare, Key, Check, X, Mic } from 'lucide-react';
 
 export default function Settings() {
   const { config, updateConfig, language, currentUser, userAccounts, updateUserAccountStatus, deleteUserAccount, updateUserPassword } = useSociety();
@@ -25,6 +25,7 @@ export default function Settings() {
   const [smsAlertPhone, setSmsAlertPhone] = useState(config.smsAlertPhone || config.contactNo || '');
   const [whatsappNo, setWhatsappNo] = useState(config.whatsappNo || config.contactNo || '');
   const [monthlyExpenseBudget, setMonthlyExpenseBudget] = useState(config.monthlyExpenseBudget || 50000);
+  const [voiceSensitivity, setVoiceSensitivity] = useState<'standard' | 'high'>(config.voiceSensitivity || 'standard');
   const [success, setSuccess] = useState('');
 
   // Password alteration states
@@ -44,7 +45,8 @@ export default function Settings() {
       nagadMerchant,
       smsAlertPhone,
       whatsappNo,
-      monthlyExpenseBudget
+      monthlyExpenseBudget,
+      voiceSensitivity
     });
     setSuccess(language === 'bn' ? 'কনফিগারেশন সফলভাবে আপডেট করা হয়েছে!' : 'Society Configurations saved successfully!');
     setTimeout(() => setSuccess(''), 3000);
@@ -267,6 +269,62 @@ export default function Settings() {
                       placeholder="+88017XXXXXXXX"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Voice Recognition Sensitivity Configurations */}
+              <div id="voice-sensitivity-card" className="rounded-xl border border-emerald-950 bg-neutral-950/40 p-5 space-y-4">
+                <h3 className="text-xs font-black uppercase tracking-wider text-[#D4AF37] font-mono flex items-center gap-1.5 pb-2 border-b border-emerald-950">
+                  <Mic className="h-4.5 w-4.5 text-emerald-400" />
+                  {language === 'bn' ? 'ভয়েস কমান্ড সেন্সিটিভিটি সেটিংস' : 'Voice Command Sensitivity'}
+                </h3>
+
+                <p className="text-[11px] text-slate-400 leading-normal">
+                  {language === 'bn' 
+                    ? 'ভয়েস কমান্ডের স্বীকৃতি ও ম্যাচিং প্রক্রিয়ার জন্য সংবেদনশীলতা কোয়ালিটি নির্বাচন করুন। হাই সেন্সিটিভিটি মোড সামান্য অমিল বা আংশিক শব্দের ক্ষেত্রেও পৃষ্ঠা স্থানান্তর সহজ করে।' 
+                    : 'Configure the sensitivity of the voice command interpreter. High-sensitivity mode allows for more lenient matching, permitting partial word overlaps and softer vocalizations to trigger navigation.'}
+                </p>
+
+                <div className="flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setVoiceSensitivity('standard')}
+                    className={`flex-1 flex flex-col items-start p-3.5 rounded-lg border text-left transition-all cursor-pointer ${
+                      voiceSensitivity === 'standard'
+                        ? 'bg-emerald-950/45 border-emerald-400/80 text-emerald-400 shadow-lg'
+                        : 'bg-neutral-900/60 border-emerald-950/40 text-slate-400 hover:border-emerald-800 hover:text-white'
+                    }`}
+                  >
+                    <span className="text-[11px] font-black tracking-wider uppercase flex items-center gap-1">
+                      {voiceSensitivity === 'standard' && <Check className="h-3.5 w-3.5 shrink-0" />}
+                      {language === 'bn' ? 'স্ট্যান্ডার্ড মোড' : 'Standard Sensitivity'}
+                    </span>
+                    <span className="text-[9.5px] font-mono text-slate-400 mt-1 leading-normal block">
+                      {language === 'bn'
+                        ? 'নির্দিষ্ট এবং সম্পূর্ণ ফ্রেজ বা পরিচিত শব্দের কঠোর মেলবন্ধন প্রয়োজন।'
+                        : 'Requires clear, complete phrases or well-defined keyword matches for navigation.'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setVoiceSensitivity('high')}
+                    className={`flex-1 flex flex-col items-start p-3.5 rounded-lg border text-left transition-all cursor-pointer ${
+                      voiceSensitivity === 'high'
+                        ? 'bg-emerald-950/45 border-emerald-400/80 text-emerald-400 shadow-lg'
+                        : 'bg-neutral-900/60 border-emerald-950/40 text-slate-400 hover:border-emerald-800 hover:text-white'
+                    }`}
+                  >
+                    <span className="text-[11px] font-black tracking-wider uppercase flex items-center gap-1">
+                      {voiceSensitivity === 'high' && <Check className="h-3.5 w-3.5 shrink-0" />}
+                      {language === 'bn' ? 'হাই সেন্সিটিভিটি মোড' : 'High Sensitivity'}
+                    </span>
+                    <span className="text-[9.5px] font-mono text-slate-400 mt-1 leading-normal block">
+                      {language === 'bn'
+                        ? 'আংশিক শব্দ, অস্পষ্ট উচ্চারণ, বা কাছাকাছি যেকোনো বাক্যাংশ অনুমোদন করে।'
+                        : 'Lenient overlap rules. Accepts sub-strings, single-word approximations, and partial accents.'}
+                    </span>
+                  </button>
                 </div>
               </div>
 

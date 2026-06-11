@@ -10,6 +10,7 @@ import Header from './components/Header';
 import PrintPreviewModal from './components/PrintPreviewModal';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import AIAssistantWidget from './components/AIAssistantWidget';
 
 // Pages import
 import Dashboard from './pages/Dashboard';
@@ -51,14 +52,6 @@ function AppContent() {
     };
   }, []);
 
-  // Authentication Router
-  if (!currentUser) {
-    if (showRegister) {
-      return <Register onLoginClick={() => setShowRegister(false)} />;
-    }
-    return <Login onRegisterClick={() => setShowRegister(true)} />;
-  }
-
   // Active View Tab Mapper
   const renderTabContent = () => {
     switch (activeTab) {
@@ -97,33 +90,46 @@ function AppContent() {
     }
   };
 
-  return (
-    <div className="flex h-screen bg-[#f8fafc] text-slate-800 overflow-hidden font-sans print:h-auto print:overflow-visible print:block">
-      
-      {/* Primary Sidebar Layout Panel */}
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+  // Render authentic views or dashboard wrapper
+  let mainContent;
+  if (!currentUser) {
+    if (showRegister) {
+      mainContent = <Register onLoginClick={() => setShowRegister(false)} />;
+    } else {
+      mainContent = <Login onRegisterClick={() => setShowRegister(true)} />;
+    }
+  } else {
+    mainContent = (
+      <div className="flex h-screen bg-[#f8fafc] text-slate-800 overflow-hidden font-sans print:h-auto print:overflow-visible print:block w-full">
+        {/* Primary Sidebar Layout Panel */}
+        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* Main Right Area wrapper */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden relative print:h-auto print:overflow-visible print:block">
-        
-        {/* Sticky Header */}
-        <Header onMenuToggle={() => setSidebarOpen(true)} />
+        {/* Main Right Area wrapper */}
+        <div className="flex-1 flex flex-col h-full overflow-hidden relative print:h-auto print:overflow-visible print:block">
+          {/* Sticky Header */}
+          <Header onMenuToggle={() => setSidebarOpen(true)} />
 
-        {/* Content Viewer viewport */}
-        <main id="main-content-area" className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#f8fafc] relative print:overflow-visible print:h-auto print:p-0 border-none print:shadow-none animate-fade-in">
-          {renderTabContent()}
-        </main>
+          {/* Content Viewer viewport */}
+          <main id="main-content-area" className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#f8fafc] relative print:overflow-visible print:h-auto print:p-0 border-none print:shadow-none animate-fade-in">
+            {renderTabContent()}
+          </main>
+        </div>
 
+        {/* Intercepted True-PDF Print Preview Overlay Dialog */}
+        <PrintPreviewModal 
+          isOpen={printModalOpen} 
+          onClose={() => setPrintModalOpen(false)} 
+          nativePrintRef={nativePrintRef}
+        />
       </div>
+    );
+  }
 
-      {/* Intercepted True-PDF Print Preview Overlay Dialog */}
-      <PrintPreviewModal 
-        isOpen={printModalOpen} 
-        onClose={() => setPrintModalOpen(false)} 
-        nativePrintRef={nativePrintRef}
-      />
-
-    </div>
+  return (
+    <>
+      {mainContent}
+      <AIAssistantWidget />
+    </>
   );
 }
 

@@ -1765,6 +1765,7 @@ export default function Login({ onRegisterClick }: LoginProps) {
   const [videoIsFeatured, setVideoIsFeatured] = useState(false);
   const [videoFormError, setVideoFormError] = useState<string | null>(null);
   const [videoIsSubmitting, setVideoIsSubmitting] = useState(false);
+  const [showSpecs, setShowSpecs] = useState(false);
 
   // Live video Firestore subscription hook
   useEffect(() => {
@@ -3673,6 +3674,8 @@ export default function Login({ onRegisterClick }: LoginProps) {
           <div className="mt-4 p-4 rounded-xl bg-neutral-900/20 border border-emerald-950 text-center text-[10px] text-slate-500 font-mono uppercase tracking-wider">
             {language === 'bn' ? 'নিরাপত্তা মানদণ্ড অনুযায়ী সুরক্ষিত' : 'SECURITY STANDARDS COMPLIANT'}
           </div>
+
+
         </section>
 
       </main>

@@ -6,6 +6,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSociety } from '../context/SocietyContext';
 import { translations, getFloorName } from '../utils/translations';
+import VoiceNavigator from './VoiceNavigator';
 import { 
   Bell, 
   Search, 
@@ -256,7 +257,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
           </div>
 
           {/* Language Toggle */}
-          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 hidden sm:flex">
+          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 hidden sm:flex font-sans">
             <button
               type="button"
               onClick={() => setLanguage('en')}
@@ -272,6 +273,9 @@ export default function Header({ onMenuToggle }: HeaderProps) {
               BN
             </button>
           </div>
+
+          {/* Real-time Voice Navigation Controller */}
+          <VoiceNavigator />
 
           {/* Real-time Notifications Bell */}
           <div ref={notifRef} className="relative">
