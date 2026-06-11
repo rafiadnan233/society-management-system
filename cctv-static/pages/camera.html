@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Surveillance Control Room - ASTHA NVR Console</title>
+  <link rel="stylesheet" href="../css/styles.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              gold: '#D4AF37',
+              darkAccent: '#0b1319'
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-zinc-950 text-slate-100 min-h-screen flex flex-col font-sans">
+
+  <!-- HEADER HUD BAR -->
+  <header class="bg-zinc-900 border-b border-zinc-800 h-16 shrink-0 flex items-center justify-between px-6 font-mono text-xs">
+    <div class="flex items-center gap-3">
+      <div class="h-8 w-8 bg-red-950 border border-red-500/30 rounded flex items-center justify-center text-red-500 animate-pulse">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="22" y2="7"/><line x1="2" y1="17" x2="22" y2="17"/></svg>
+      </div>
+      <div>
+        <h1 class="font-extrabold text-[#D4AF37] text-sm uppercase">ASTHA SURVEILLANCE</h1>
+        <p class="text-[9px] text-zinc-500 tracking-wider">SECURE NVR TERMINAL v3.8.1</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-4">
+      <div class="hidden sm:flex items-center gap-2">
+        <span class="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-ping"></span>
+        <span class="text-[10px] text-zinc-400">CONSOLE CONNECTED</span>
+      </div>
+      <button 
+        id="themeToggleBtn"
+        class="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 p-2 rounded cursor-pointer"
+        title="Toggle Light / Dark Monocular Mode"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+      <button 
+        id="logoutBtn"
+        class="bg-red-950/40 hover:bg-red-900/50 text-red-400 border border-red-500/20 px-3 py-1.5 rounded text-[10px] tracking-wider uppercase cursor-pointer"
+      >
+        DISCONNECT CONSOLE
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN OPERATIONAL WORKSPACE -->
+  <main class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+    
+    <!-- LEFT HUB: CHANNELS STREAM VISUALIZATION STAGE (8/12 WIDTH) -->
+    <section class="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4">
+      
+      <!-- Live Video Active Deck Wrapper -->
+      <div id="focusedPlayerContainer" class="bg-black rounded-2xl border border-zinc-800 p-4 shadow-xl space-y-3 relative">
+        <div class="flex justify-between items-center text-[10px] font-mono text-zinc-400 border-b border-zinc-800pb-2">
+          <span class="text-xs text-white font-bold uppercase tracking-wider flex items-center gap-2">
+            <span class="h-2 w-2 bg-red-600 rounded-full animate-ping"></span>
+            ACTIVE SELECTED SURVEILLANCE CHANNEL: <span id="focusedCamName" class="text-red-500">Front Gate Intake 01</span>
+          </span>
+          <span id="focusedCamPos">COORDINATES: DYNAMIC HUD</span>
+        </div>
+
+        <!-- Video Player Stage Element -->
+        <div class="aspect-video w-full bg-slate-950 rounded-xl relative overflow-hidden group">
+          <video id="focusedVideo" class="w-full h-full object-cover rounded-xl" muted autoplay playsinline></video>
+          
+          <!-- Tactical fallback canvas -->
+          <canvas id="fallbackCanvas" class="absolute inset-0 w-full h-full object-cover rounded-xl hidden" width="800" height="450"></canvas>
+
+          <div id="loaderOverlay" class="absolute inset-0 bg-black/75 flex flex-col items-center justify-center font-mono">
+            <div class="h-8 w-8 border-2 border-red-500/30 border-t-red-600 rounded-full animate-spin mb-2"></div>
+            <span class="text-[10px] text-zinc-450 uppercase tracking-widest text-[#D4AF37]">DECODING PIPELINES...</span>
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center font-mono text-[9px] text-[#A1A1AA]">
+          <span id="focusedCamDetails">STREAM MODE: HLS CONDUIT</span>
+          <span id="hudTimestamp">2026-06-10 07:00:00</span>
+        </div>
+      </div>
+
+      <!-- CAMERA DIRECTORY CARDS GRID -->
+      <div class="space-y-2">
+        <h3 class="text-[11px] font-bold text-[#D4AF37] font-mono uppercase tracking-wider">COMMAND MATRIX GRID MONITOR</h3>
+        <div id="camerasGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <!-- Dynamic cards injected here -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT HUB: SURVEILLANCE SWITCHERS AND ACCESS CHECKS -->
+    <aside class="w-full lg:w-80 bg-zinc-900 border-t lg:border-t-0 lg:border-l border-zinc-800 p-4 sm:p-6 shrink-0 flex flex-col gap-5 overflow-y-auto">
+      
+      <!-- ACCESS POLICIES -->
+      <div class="space-y-3">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-100 font-mono flex items-center gap-1">
+          🔐 Surveillance Access Control
+        </h3>
+        <p class="text-[11px] text-zinc-400 font-sans leading-relaxed">
+          Surveillance is protected under strict security locks. Overrule access permissions directly.
+        </p>
+        <div class="flex gap-2">
+          <button id="toggleResidentOverride" class="w-full bg-zinc-800 hover:bg-zinc-700 text-[9px] font-mono font-bold tracking-tight py-2 rounded text-slate-300 border border-zinc-700 cursor-pointer uppercase">
+            Residents override: ON
+          </button>
+        </div>
+      </div>
+
+      <!-- SECURE AUDIT ACTIVITY TRAILS -->
+      <div class="space-y-3 flex-1">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-100 font-mono flex items-center gap-1 border-b border-zinc-800 pb-2">
+          🕒 Live Guard Watch Logs
+        </h3>
+        <div id="watchHistoryList" class="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+          <!-- logs injected here -->
+        </div>
+      </div>
+
+    </aside>
+
+  </main>
+
+  <script type="module">
+    import CONFIG from '../config/config.js';
+
+    // Verify authentication
+    const user = JSON.parse(localStorage.getItem('cctv_authenticated_user'));
+    if (!user) {
+      window.location.href = '../index.html';
+    }
+
+    let activeCam = CONFIG.DEFAULT_STREAMS[0];
+    let residentOverrideActive = true;
+    let fallbackCanvasLoop = null;
+
+    // DOM selectors
+    const video = document.getElementById('focusedVideo');
+    const fallbackCanvas = document.getElementById('fallbackCanvas');
+    const focusedName = document.getElementById('focusedCamName');
+    const focusedPos = document.getElementById('focusedCamPos');
+    const focusedDetails = document.getElementById('focusedCamDetails');
+    const hudTime = document.getElementById('hudTimestamp');
+    const loader = document.getElementById('loaderOverlay');
+    const cardsGrid = document.getElementById('camerasGrid');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const watchList = document.getElementById('watchHistoryList');
+    const toggleResidentOverrideBtn = document.getElementById('toggleResidentOverride');
+
+    // Disconnect Action
+    logoutBtn.addEventListener('click', () => {
+      localStorage.removeItem('cctv_authenticated_user');
+      window.location.href = '../index.html';
+    });
+
+    // Toggle override
+    toggleResidentOverrideBtn.addEventListener('click', () => {
+      residentOverrideActive = !residentOverrideActive;
+      toggleResidentOverrideBtn.innerText = `Residents override: ${residentOverrideActive ? 'ACTIVE' : 'LOCKED'}`;
+      toggleResidentOverrideBtn.className = residentOverrideActive 
+        ? "w-full bg-emerald-950 border border-emerald-500/30 text-emerald-400 text-[9px] font-mono font-bold py-2 rounded cursor-pointer uppercase"
+        : "w-full bg-red-950 border border-red-500/30 text-red-500 text-[9px] font-mono font-bold py-2 rounded cursor-pointer uppercase";
+      renderGrid();
+    });
+
+    // Injects clock
+    setInterval(() => {
+      hudTime.innerText = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    }, 1000);
+
+    // Dynamic watch log
+    function addWatchLog(cam) {
+      const parent = document.createElement('div');
+      parent.className = "text-[10px] font-mono border-b border-zinc-800 pb-2 space-y-1";
+      parent.innerHTML = `
+        <div class="flex justify-between text-zinc-400">
+          <span class="text-white font-bold">${user.name}</span>
+          <span>${new Date().toLocaleTimeString()}</span>
+        </div>
+        <p class="text-zinc-500 font-sans">
+          Secured access authorized. Loading Live Decoder for: <span class="text-red-500 font-mono font-bold">${cam.name}</span>
+        </p>
+      `;
+      watchList.prepend(parent);
+    }
+
+    // Play specific stream URL
+    function playCameraStream(cam) {
+      activeCam = cam;
+      focusedName.innerText = cam.name;
+      focusedPos.innerText = `ZONE: ${cam.location}`;
+      focusedDetails.innerText = `Protocol: ${cam.type} • Status: ${cam.status}`;
+      
+      // Reset loops
+      if (fallbackCanvasLoop) {
+        cancelAnimationFrame(fallbackCanvasLoop);
+        fallbackCanvasLoop = null;
+      }
+      
+      // Start loader spinner
+      loader.classList.remove('hidden');
+      video.classList.add('hidden');
+      fallbackCanvas.classList.add('hidden');
+
+      // Check if fallback needed immediately
+      if (cam.status === 'Offline') {
+        setTimeout(() => {
+          loader.classList.add('hidden');
+          fallbackCanvas.classList.remove('hidden');
+          startTacticalCanvasFallback(cam);
+        }, 600);
+        addWatchLog(cam);
+        return;
+      }
+
+      // Live Hls play
+      if (Hls.isSupported()) {
+        const hls = new Hls({ maxRetryDelay: 3000 });
+        hls.loadSource(cam.url);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play().catch(() => {});
+          loader.classList.add('hidden');
+          video.classList.remove('hidden');
+        });
+        hls.on(Hls.Events.ERROR, () => {
+          // fallback to canvas stream automatically
+          loader.classList.add('hidden');
+          fallbackCanvas.classList.remove('hidden');
+          startTacticalCanvasFallback(cam);
+        });
+      } else {
+        video.src = cam.url;
+        video.addEventListener('loadedmetadata', () => {
+          video.play().catch(() => {});
+          loader.classList.add('hidden');
+          video.classList.remove('hidden');
+        });
+        video.addEventListener('error', () => {
+          loader.classList.add('hidden');
+          fallbackCanvas.classList.remove('hidden');
+          startTacticalCanvasFallback(cam);
+        });
+      }
+
+      addWatchLog(cam);
+    }
+
+    // Canvas Simulator fallback loop
+    function startTacticalCanvasFallback(cam) {
+      const ctx = fallbackCanvas.getContext('2d');
+      let offset = 0;
+
+      function renderFrame() {
+        ctx.fillStyle = '#06080b';
+        ctx.fillRect(0, 0, fallbackCanvas.width, fallbackCanvas.height);
+
+        // Grid overlay lines
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.12)';
+        ctx.lineWidth = 1;
+        const spacing = 35;
+        for (let x = 0; x < fallbackCanvas.width; x += spacing) {
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, fallbackCanvas.height); ctx.stroke();
+        }
+        for (let y = 0; y < fallbackCanvas.height; y += spacing) {
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(fallbackCanvas.width, y); ctx.stroke();
+        }
+
+        // Crosshairs targeting box
+        ctx.strokeStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(fallbackCanvas.width/2, fallbackCanvas.height/2, 35, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Overlay text
+        ctx.fillStyle = '#f43f5e';
+        ctx.font = "bold 12px 'JetBrains Mono', monospace";
+        ctx.fillText(`Surveillance Hub Fallback feeds`, 30, 40);
+        ctx.fillText(`CAM NODE: ${cam.name}`, 30, 60);
+        ctx.fillText(`SIGNAL: DIGITAL EMULATED`, 30, 80);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(`TACTICAL GPS: N 23° 49' 2" / E 90° 25' 18"`, 30, fallbackCanvas.height - 30);
+
+        // Noise snow static effect lines
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
+        for (let j = 0; j < 8; j++) {
+          ctx.fillRect(0, Math.random() * fallbackCanvas.height, fallbackCanvas.width, Math.random() * 3);
+        }
+
+        fallbackCanvasLoop = requestAnimationFrame(renderFrame);
+      }
+      renderFrame();
+    }
+
+    // Render cards list on grid
+    function renderGrid() {
+      cardsGrid.innerHTML = '';
+      
+      CONFIG.DEFAULT_STREAMS.forEach((cam, idx) => {
+        const allowed = residentOverrideActive || cam.allowedRoles.includes('Resident');
+        const card = document.createElement('div');
+        
+        card.className = `p-3 bg-zinc-900 border rounded-xl overflow-hidden cursor-pointer transition-all ${
+          !allowed 
+            ? 'opacity-40 border-zinc-800' 
+            : activeCam.id === cam.id 
+              ? 'border-red-500 bg-zinc-800/50 shadow' 
+              : 'border-zinc-800 hover:border-zinc-700'
+        }`;
+
+        card.innerHTML = `
+          <div class="aspect-video bg-zinc-950 rounded relative overflow-hidden flex items-center justify-center font-mono">
+            <span class="text-[9px] uppercase tracking-wider text-zinc-500 font-bold">CAM MULTI VIEW</span>
+            
+            <div class="absolute top-2 left-2 flex gap-1 items-center">
+              <span class="px-1 py-0.5 bg-black/80 rounded text-[7px] text-zinc-300 font-bold uppercase">CH ${idx + 1}</span>
+            </div>
+            <div class="absolute bottom-2 right-2">
+              <span class="px-1 rounded text-[7px] font-bold ${cam.status === 'Online' ? 'bg-emerald-950 text-emerald-400' : 'bg-red-950 text-red-500'}">${cam.status}</span>
+            </div>
+          </div>
+          <div class="mt-2.5 font-mono text-[10px] space-y-0.5">
+            <h4 class="font-bold text-white truncate text-[11px]">${cam.name}</h4>
+            <p class="text-zinc-500 truncate text-[9px]">${cam.location}</p>
+          </div>
+        `;
+
+        if (allowed) {
+          card.addEventListener('click', () => playCameraStream(cam));
+        }
+        cardsGrid.appendChild(card);
+      });
+    }
+
+    // Bootstrap
+    renderGrid();
+    playCameraStream(CONFIG.DEFAULT_STREAMS[0]);
+
+  </script>
+</body>
+</html>

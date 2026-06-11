@@ -225,6 +225,53 @@
         "createdBy": { "type": "string" }
       },
       "required": ["title", "projectName", "category", "uploadDate", "createdBy"]
+    },
+    "Camera": {
+      "title": "Camera",
+      "description": "A registered security CCTV camera node serving live streams.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "location": { "type": "string" },
+        "streamUrl": { "type": "string" },
+        "type": { "type": "string", "enum": ["HLS", "WebRTC"] },
+        "status": { "type": "string", "enum": ["Online", "Offline"] },
+        "lastOnline": { "type": "string" },
+        "allowedRoles": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["id", "name", "location", "streamUrl", "type", "status", "allowedRoles"]
+    },
+    "CameraPermission": {
+      "title": "CameraPermission",
+      "description": "Role-specific secondary access authorization overrides.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "cameraId": { "type": "string" },
+        "cameraName": { "type": "string" },
+        "isAllowed": { "type": "boolean" },
+        "grantedBy": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "userName", "cameraId", "isAllowed", "grantedBy", "updatedAt"]
+    },
+    "CctvWatchHistory": {
+      "title": "CctvWatchHistory",
+      "description": "Audit trails logging user streams watches and active durations.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "cameraId": { "type": "string" },
+        "cameraName": { "type": "string" },
+        "watchedAt": { "type": "string" },
+        "durationSeconds": { "type": "number" }
+      },
+      "required": ["id", "userId", "userName", "cameraId", "watchedAt"]
     }
   },
   "firestore": {
@@ -279,6 +326,18 @@
     "userAccounts/{accountId}": {
       "schema": "UserAccount",
       "description": "Dynamic registered credentials lookup mapping."
+    },
+    "cameras/{cameraId}": {
+      "schema": "Camera",
+      "description": "Collection of active HLS and WebRTC security cameras monitored in estate."
+    },
+    "camera_permissions/{permId}": {
+      "schema": "CameraPermission",
+      "description": "Active camera view authorization controls."
+    },
+    "cctv_watch_histories/{historyId}": {
+      "schema": "CctvWatchHistory",
+      "description": "Historical records tracking who viewed what camera stream and when."
     }
   }
 }

@@ -120,5 +120,20 @@ service cloud.firestore {
     match /project_videos/{videoId} {
       allow read, write: if true;
     }
+
+    // CCTV Cameras Collection
+    match /cameras/{cameraId} {
+      allow read, write: if true;
+    }
+
+    // Camera Permissions Overrides
+    match /camera_permissions/{permId} {
+      allow read, write: if true;
+    }
+
+    // CCTV Watching History Audit
+    match /cctv_watch_histories/{historyId} {
+      allow read, write: if true;
+    }
   }
 }
