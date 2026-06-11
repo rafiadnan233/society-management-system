@@ -193,16 +193,61 @@ export default function AIAssistantWidget() {
 
       setMessages(prev => [...prev, botMessage]);
     } catch (err) {
-      console.error('Error generating response:', err);
-      const errorMessage: ChatMessage = {
-        id: `err-${Date.now()}`,
+      console.warn('Error generating response from backend, switching to high-fidelity client assistant:', err);
+      
+      // High-fidelity local offline assistant client-side responder
+      const getClientOfflineResponse = (query: string, lang: 'bn' | 'en'): string => {
+        const q = query.toLowerCase();
+        
+        if (lang === 'bn') {
+          if (q.includes("বিল") || q.includes("পেমেন্ট") || q.includes("টাকা") || q.includes("payment") || q.includes("bill") || q.includes("fee") || q.includes("maint")) {
+            return `**আস্থা টুইন টাওয়ার পেমেন্ট গাইডলাইন (অফলাইন মোড):**\n\n১. **শেষ সময়:** প্রতি মাসের ১০ তারিখের মধ্যে মাসিক মেইনটেইন্যান্স ফি পরিশোধ করতে হবে।\n২. **বিলম্ব ফি:** ১৫ তারিখ পার হয়ে গেলে অতিরিক্ত বিলম্ব ফি যুক্ত হতে পারে।\n৩. **পরিশোধ পদ্ধতি:** ড্যাশবোর্ডের "Payments" থেকে bKash, Nagad অথবা সরাসরি ক্যাশ পেমেন্ট করতে পারেন।`;
+          }
+          if (q.includes("quiet") || q.includes("ঘুম") || q.includes("শান্ত") || q.includes("শব্দ") || q.includes("night") || q.includes("silent") || q.includes("রাত")) {
+            return `**আস্থা টুইন টাওয়ার শব্দহীন প্রবিধান (Quiet Hours):**\n\n- **সময়সূচী:** প্রতিদিন রাত ১০:০০ টা থেকে সকাল ০৬:০০ টা পর্যন্ত শান্ত ঘন্টা বলবৎ থাকে।\n- এই ক্ষণে উচ্চ শব্দ সৃষ্টিকারী কাজ বা জোরে উৎসব করা বারণ যাতে বৃদ্ধ বা শিশুদের ঘুমের ব্যাঘাত না ঘটে।`;
+          }
+          if (q.includes("visitor") || q.includes("guest") || q.includes("ভিজিটর") || q.includes("মেহমান") || q.includes("গেস্ট") || q.includes("passes")) {
+            return `**ভিজিটর এন্ট্রি পাস গাইড (অফলাইন মোড):**\n\n১. নিরাপত্তার স্বার্থে বহিরাগত মেহমানদের মেইন গেটে রেজিষ্ট্রেশন করতে হবে।\n২. বাসিন্দারা Resident ড্যাশবোর্ডে গিয়ে পূর্বেই **Visitor Entry Request** টিকিট জেনারেট করে গেস্টদের নির্বিঘ্ন প্রবেশ নিশ্চিত করতে পারেন।`;
+          }
+          if (q.includes("complaint") || q.includes("অভিযোগ") || q.includes("নষ্ট") || q.includes("ত্রুটি") || q.includes("পানির") || q.includes("লিঙ্ক")) {
+            return `**অভিযোগ ও সমাধান সেবা (অফলাইন মোড):**\n\n- পানির লিকেজ বা প্লাম্বিং সমস্যার জন্য আপনি বাসিন্দা প্যানেল থেকে **Complaint Management** টিকিট সাবমিট করতে পারেন। আমাদের নিয়োজিত সেবা টেকনিশিয়ান ১২ ঘণ্টার মধ্যে এর সমাধান করবে।`;
+          }
+          if (q.includes("location") || q.includes("ঠিকানা") || q.includes("কোথায়") || q.includes("কুমিল্লা") || q.includes("cumilla") || q.includes("address")) {
+            return `**আস্থা টুইন টাওয়ারের অবস্থান:**\n\n- **ঠিকানা:** খেতাসার, কুমিল্লা, বাংলাদেশ (Khetasar, Cumilla, Bangladesh)।`;
+          }
+          return `আস্থা টুইন টাওয়ার এআই সহযোগী (অফলাইন মোড):\nসার্ভারে উচ্চ ট্রাফিক বা নেট সংযোগের বিঘ্নতার কারণে আমি আপনাকে সাহায্য করছি অফলাইন প্রক্সি থেকে!\n\n**নিম্নলিখিত বিষয়ে যেকোনো তথ্য জানতে লিখুন:**\n- মেইনটেইন্যান্স পেমেন্ট এবং বিলের নিয়মনীতি\n- কুয়ায়েট আওয়ার্স বা ঘুমের সময়সূচী\n- নতুন গেস্ট এন্ট্রি পাস ও মেইন গেট রেজিষ্ট্রেশন\n- যেকোনো অভিযোগ সাবমিট ও ট্র্যাক ট্র্যাকিং`;
+        } else {
+          if (q.includes("bill") || q.includes("pay") || q.includes("maint") || q.includes("fee") || q.includes("money")) {
+            return `**Astha Maintenance Billing Guidelines (Offline Mode):**\n\n1. **Deadline:** Must pay monthly maintenance fees by the 10th of each month.\n2. **Late Fee:** Late fees apply after the 15th of the month.\n3. **Method:** Support bKash, Nagad, or Cash payments via the "Payments" panel.`;
+          }
+          if (q.includes("quiet") || q.includes("night") || q.includes("sound") || q.includes("silent") || q.includes("sleep")) {
+            return `**Astha Twin Towers Quiet Hours Policy (Offline Mode):**\n\n- **Hours:** Observed daily from 10:00 PM to 6:00 AM.\n- No high-decibel music, sounds, or heavy construction are permitted during this timeframe.`;
+          }
+          if (q.includes("visitor") || q.includes("guest") || q.includes("gate") || q.includes("pass")) {
+            return `**Visitor Entry & Pass Registry (Offline Mode):**\n\n1. Security registration is mandatory at the entrance for all external guests.\n2. Residents can pre-approve visitors through the dashboard's **Visitor Entry Request** panel.`;
+          }
+          if (q.includes("complaint") || q.includes("leak") || q.includes("plumb") || q.includes("issue")) {
+            return `**Complaint & Ticket Board (Offline Mode):**\n\n- Submit plumbing, electrical, or generic helper complaints through your resident panel. A maintenance helper will inspect within 12 hours.`;
+          }
+          if (q.includes("location") || q.includes("address") || q.includes("where") || q.includes("cumilla")) {
+            return `**Location of Astha Twin Towers:**\n\n- **Address:** Khetasar, Cumilla, Bangladesh.`;
+          }
+          return `Astha Twin Tower Assistant (Offline Local Mode):\nDue to server downtime or connectivity delays, I am assisting you from the local database.\n\n**Ask me about:**\n- Monthly maintenance billing & payments\n- Quiet hours & night regulations\n- Resident complaint ticketing\n- Visitor passes & security`;
+        }
+      };
+
+      const localResponseText = getClientOfflineResponse(textToSend, language);
+      const offlineMsgText = language === 'bn' 
+        ? `⚠️ *[নেটওয়ার্কFallback] ${localResponseText}*`
+        : `⚠️ *[NetworkFallback] ${localResponseText}*`;
+
+      const botMessage: ChatMessage = {
+        id: `offline-${Date.now()}`,
         role: 'model',
-        text: language === 'bn'
-          ? 'দুঃখিত, আস্থা সার্ভার বা জেমিনি এআই রিকোয়েস্ট সফল হয়নি। অনুগ্রহ করে আপনার নেট সংযোগ পরীক্ষা করুন।'
-          : 'Sorry, the request to Astha Twin Tower AI backend failed. Please check your connectivity.',
+        text: offlineMsgText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages(prev => [...prev, botMessage]);
     } finally {
       setLoading(false);
     }
