@@ -27,6 +27,18 @@ let cachedAccessToken: string | null = null;
 let isSigningIn = false;
 
 /**
+ * Set manual access token for environments like GitHub Pages where popup sign-in gets blocked or restricted.
+ */
+export const setManualAccessToken = (token: string | null) => {
+  cachedAccessToken = token;
+  if (token) {
+    localStorage.setItem('google_drive_manual_access_token', token);
+  } else {
+    localStorage.removeItem('google_drive_manual_access_token');
+  }
+};
+
+/**
  * Trigger Google Sign In and return the access token
  */
 export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
@@ -40,6 +52,7 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
       throw new Error('Failed to obtain Google OAuth access token.');
     }
     cachedAccessToken = accessToken;
+    localStorage.setItem('google_drive_manual_access_token', accessToken);
     return { user: result.user, accessToken };
   } catch (error) {
     console.error('Google Sign-In Error:', error);
@@ -53,15 +66,20 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
  * Get active cached access token or return null if not logged in
  */
 export const getAccessToken = (): string | null => {
-  return cachedAccessToken;
+  return cachedAccessToken || localStorage.getItem('google_drive_manual_access_token');
 };
 
 /**
  * Clear token cache on logout
  */
 export const logoutGoogle = async () => {
-  await auth.signOut();
+  try {
+    await auth.signOut();
+  } catch (e) {
+    console.warn("Firebase Auth signOut warning:", e);
+  }
   cachedAccessToken = null;
+  localStorage.removeItem('google_drive_manual_access_token');
 };
 
 /**

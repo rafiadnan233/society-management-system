@@ -30,7 +30,8 @@ import {
   downloadBackupFromDrive, 
   deleteBackupFromDrive,
   DriveBackupFile,
-  auth
+  auth,
+  setManualAccessToken
 } from '../utils/googleDrive';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { backupToFirestoreCloud, restoreFromFirestoreCloud } from '../utils/firebaseSync';
@@ -72,6 +73,7 @@ export default function BackupRestore() {
   const [loadingDrive, setLoadingDrive] = useState(false);
   const [driveSuccess, setDriveSuccess] = useState('');
   const [driveError, setDriveError] = useState('');
+  const [manualTokenInput, setManualTokenInput] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null); // tracks id/type of active google operations
 
   // Last Cloud Backup timestamp state & dynamic calculations
@@ -97,6 +99,18 @@ export default function BackupRestore() {
 
   // Listen to Auth changes
   useEffect(() => {
+    // 1. Check local storage for direct manual access token fallback (important for GitHub Pages)
+    const savedToken = localStorage.getItem('google_drive_manual_access_token');
+    if (savedToken) {
+      setToken(savedToken);
+      setUser({
+        displayName: 'GitHub Pages Backup Master',
+        email: 'connected-via-oauth-token',
+        photoURL: ''
+      } as any);
+      fetchDriveBackups(savedToken);
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
@@ -123,9 +137,13 @@ export default function BackupRestore() {
           console.warn("Could not probe Firestore backup dynamically on load.", e);
         }
       } else {
-        setUser(null);
-        setToken(null);
-        setDriveBackups([]);
+        // If not logged in via popup but manual token exists, keep session active
+        const st = localStorage.getItem('google_drive_manual_access_token');
+        if (!st) {
+          setUser(null);
+          setToken(null);
+          setDriveBackups([]);
+        }
       }
     });
     return () => unsubscribe();
@@ -178,10 +196,61 @@ export default function BackupRestore() {
         await fetchDriveBackups(result.accessToken);
       }
     } catch (err: any) {
+      console.error("Google login failed:", err);
+      const errStr = String(err?.message || err?.code || "").toLowerCase();
+      const isDomainErr = errStr.includes("authdomain") || 
+                          errStr.includes("unauthorized-domain") || 
+                          errStr.includes("unauthorized") || 
+                          window.location.hostname.includes("github.io");
+      
+      if (isDomainErr) {
+        setDriveError(
+          language === 'bn'
+            ? `ত্রুটি: GitHub Pages-এ Firebase বা গুগল সাইন-ইন ডোমেন অনুমতি নেই। এটি সমাধান করতে অনুগ্রহ করে Firebase Console > Authentication-এর Settings-এ গিয়ে আপনার ডোমেন (${window.location.hostname}) যুক্ত করুন অথবা নিচে দেওয়া "বিকল্প এক্সেস টোকেন" ব্যবহার করুন।`
+            : `Error: GitHub Pages domain (${window.location.hostname}) is not authorized in your Firebase Auth setup. To fix, please add it under Firebase Console > Authentication > Settings > Authorized Domains or use the direct "Alternative Access Token" input below.`
+        );
+      } else {
+        setDriveError(
+          language === 'bn'
+            ? 'গুগল ড্রাইভ সাইন-ইন সম্পন্ন করা যায়নি। অনুগ্রহ করে নিচে অফলাইন/বিকল্প এক্সেস টোকেন ব্যবহার করুন।'
+            : 'Could not complete Google Drive sign-in. Please use the direct Alternative Access Token input below.'
+        );
+      }
+    }
+  };
+
+  // Save manual token callback
+  const handleSaveManualToken = async () => {
+    if (!manualTokenInput.trim()) {
+      setDriveError(
+        language === 'bn' ? 'অনুগ্রহ করে একটি সচল গুগল ও-অথ এক্সেস টোকেন দিন!' : 'Please enter a valid Google OAuth Access Token!'
+      );
+      return;
+    }
+    setDriveError('');
+    setDriveSuccess('');
+    try {
+      const tok = manualTokenInput.trim();
+      setManualAccessToken(tok);
+      setToken(tok);
+      setUser({
+        displayName: 'GitHub Pages Backup Master',
+        email: 'connected-via-oauth-token',
+        photoURL: ''
+      } as any);
+      setDriveSuccess(
+        language === 'bn'
+          ? 'সফলভাবে টোকেন সংযুক্ত হয়েছে! ড্রাইভ সূচী লোড করা হচ্ছে...'
+          : 'Token successfully saved! Fetching Google Drive storage content...'
+      );
+      setTimeout(() => setDriveSuccess(''), 3500);
+      await fetchDriveBackups(tok);
+    } catch (err: any) {
+      console.error("Manual token connect error:", err);
       setDriveError(
         language === 'bn'
-          ? 'গুগল ড্রাইভ সাইন-ইন সম্পন্ন করা যায়নি।'
-          : 'Could not complete Google Drive sign-in.'
+          ? 'এই টোকেনটি দিয়ে গুগল ড্রাইভ ডাটা লোড করা যায়নি। টোকেনটি সঠিক এবং সচল কিনা যাচাই করুন।'
+          : 'Failed to access Google Drive with this token. Please verify that the token is active and valid.'
       );
     }
   };
@@ -825,6 +894,45 @@ export default function BackupRestore() {
                 </svg>
                 <span>{language === 'bn' ? 'গুগল অ্যাকাউন্টের সাথে সাইন-ইন' : 'Sign in with Google'}</span>
               </button>
+
+              {/* Manual token input option - especially helpful for Github Pages or sandbox redirection blocks */}
+              <div className="w-full max-w-sm border-t border-slate-800/40 pt-4 mt-2">
+                <details className="group">
+                  <summary className="text-[11px] font-bold text-slate-400 hover:text-slate-350 cursor-pointer select-none py-1 flex items-center justify-center gap-1">
+                    <span>{language === 'bn' ? 'গিটহাব পেজ বা বিকল্প ম্যানুয়াল সংযোগ পদ্ধতি' : 'Alternative Connection for GitHub Pages'}</span>
+                  </summary>
+                  <div className="pt-3 space-y-2 text-start">
+                    <p className="text-[10px] text-slate-500 leading-normal">
+                      {language === 'bn' 
+                        ? 'আপনি যদি GitHub Pages ব্যবহার করেন, তাহলে গুগল পপআপ সাইন-ইন ডোমেইন ব্লকের কারণে কাজ নাও করতে পারে। সেই ক্ষেত্রে নিচের বক্সে আপনার Google OAuth Access Token পেস্ট করে সরাসরি ড্রাইভ লিঙ্ক করতে পারেন।'
+                        : 'If you are using GitHub Pages, Google popup sign-in might fail to authenticate. You can paste a Google OAuth Access Token below to connect directly.'
+                      }
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        placeholder="ya29.a0Acv..."
+                        value={manualTokenInput}
+                        onChange={(e) => setManualTokenInput(e.target.value)}
+                        className="flex-grow rounded border border-slate-800 bg-neutral-950/70 py-1.5 px-3 text-white text-xs focus:border-[#4285F4] focus:outline-none placeholder-slate-700 font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveManualToken}
+                        className="px-3.5 py-1.5 bg-[#4285F4] hover:bg-blue-600 text-white font-sans text-xs font-bold rounded cursor-pointer transition-colors shrink-0"
+                      >
+                        {language === 'bn' ? 'সংযুক্ত করুন' : 'Connect'}
+                      </button>
+                    </div>
+                    <p className="text-[9px] text-[#D4AF37] leading-relaxed">
+                      {language === 'bn'
+                        ? '💡 গুগল ড্রাইভ ব্যাকআপ স্কোপ ("https://www.googleapis.com/auth/drive.file") পাস করার মাধ্যমে সচল টোকেন বা গুগল প্লেগ্রাউন্ড টোকেন ব্যবহার করতে পারেন।'
+                        : '💡 You can acquire this token directly from Google OAuth Playground with "https://www.googleapis.com/auth/drive.file" scope.'
+                      }
+                    </p>
+                  </div>
+                </details>
+              </div>
             </div>
           ) : (
             <div className="space-y-6">
