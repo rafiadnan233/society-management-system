@@ -174,6 +174,7 @@ export interface SocietyConfig {
   building3dDescBn?: string;
   
   constructionImg?: string;
+  constructionImagesJson?: string;
   constructionPercent?: number;
   constructionDescEn?: string;
   constructionDescBn?: string;

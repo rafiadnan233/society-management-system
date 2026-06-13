@@ -146,8 +146,34 @@ export default function Login({ onRegisterClick }: LoginProps) {
     return () => clearInterval(interval);
   }, [parsed3dImages]);
 
+  // Slideshow Logic for Construction Logs Gallery
+  const parsedConstructionImages = React.useMemo(() => {
+    try {
+      if (config.constructionImagesJson) {
+        const arr = JSON.parse(config.constructionImagesJson);
+        if (Array.isArray(arr) && arr.length > 0) {
+          return arr;
+        }
+      }
+    } catch (e) {
+      console.error("Error parsing constructionImagesJson:", e);
+    }
+    return [config.constructionImg || constructionImg];
+  }, [config.constructionImagesJson, config.constructionImg]);
+
+  useEffect(() => {
+    if (parsedConstructionImages.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentSlideConstruction(prev => (prev + 1) % parsedConstructionImages.length);
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [parsedConstructionImages]);
+
   // Form Fields State: Construction Progress
   const [valConstructionImg, setValConstructionImg] = useState('');
+  const [valConstructionImages, setValConstructionImages] = useState<string[]>([]);
+  const [valConstructionNewUrl, setValConstructionNewUrl] = useState('');
+  const [currentSlideConstruction, setCurrentSlideConstruction] = useState(0);
   const [valConstructionPercent, setValConstructionPercent] = useState(85);
   const [valConstructionDescEn, setValConstructionDescEn] = useState('');
   const [valConstructionDescBn, setValConstructionDescBn] = useState('');
@@ -1591,6 +1617,21 @@ export default function Login({ onRegisterClick }: LoginProps) {
 
   const openConstructionModal = () => {
     setValConstructionImg(config.constructionImg || '');
+    let initialImages: string[] = [];
+    try {
+      if (config.constructionImagesJson) {
+        initialImages = JSON.parse(config.constructionImagesJson);
+      } else if (config.constructionImg) {
+        initialImages = [config.constructionImg];
+      }
+    } catch (e) {
+      console.error(e);
+      if (config.constructionImg) {
+        initialImages = [config.constructionImg];
+      }
+    }
+    setValConstructionImages(initialImages);
+    setValConstructionNewUrl('');
     setValConstructionPercent(config.constructionPercent !== undefined ? config.constructionPercent : 85);
     setValConstructionDescEn(config.constructionDescEn || "Sub-grade foundation and pile capping have been 100% completed...");
     setValConstructionDescBn(config.constructionDescBn || "মাটির পাইলিং এবং ফুটিং বেইসের কাজ ১০০% সুরক্ষায় সমাপ্ত হয়েছে...");
@@ -1599,8 +1640,10 @@ export default function Login({ onRegisterClick }: LoginProps) {
 
   const saveConstructionCustomizations = (e: React.FormEvent) => {
     e.preventDefault();
+    const firstImg = valConstructionImages[0] || valConstructionImg || '';
     updateConfig({
-      constructionImg: valConstructionImg,
+      constructionImg: firstImg,
+      constructionImagesJson: JSON.stringify(valConstructionImages),
       constructionPercent: Number(valConstructionPercent),
       constructionDescEn: valConstructionDescEn,
       constructionDescBn: valConstructionDescBn
@@ -2472,18 +2515,87 @@ export default function Login({ onRegisterClick }: LoginProps) {
               {/* TAB 2: CONSTRUCTION LOG PHOTOS */}
               {activeTab === 'construction' && (
                 <div className="space-y-4 animate-fade-in text-xs">
-                  <div className="relative rounded-xl border border-emerald-900/45 bg-neutral-950 overflow-hidden shadow-2xl">
-                    <img 
-                      src={config.constructionImg || constructionImg || null} 
-                      alt="Current construction progress at Khetasar Cumilla" 
-                      className="w-full aspect-video object-cover transition-transform duration-700 hover:scale-[1.03]"
-                      referrerPolicy="no-referrer"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/10 pointer-events-none" />
-                    <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between text-xs bg-black/75 backdrop-blur-md p-2 rounded border border-emerald-900/30">
-                      <span className="font-mono text-emerald-400 font-bold">🛠 {language === 'bn' ? 'সাইট নির্মাণ কাজ এবং গুনমান পরীক্ষা' : 'Active Mechanical Layout and Civil Audits'}</span>
-                      <span className="text-[10px] text-amber-500 uppercase font-mono font-bold tracking-widest">{language === 'bn' ? 'চলমান অগ্রগতি' : 'LIVE CONSTRUCTION'}</span>
+                  <div className="relative rounded-xl border border-emerald-900/45 bg-neutral-950 overflow-hidden shadow-2xl aspect-video">
+                    {/* Slides container */}
+                    <div className="absolute inset-0 w-full h-full">
+                      {parsedConstructionImages.map((imgUrl, i) => {
+                        const isActive = i === currentSlideConstruction;
+                        return (
+                          <div
+                            key={i}
+                            className={`absolute inset-0 w-full h-full transition-all duration-1000 ease-in-out ${
+                              isActive 
+                                ? 'opacity-100 scale-100 translate-x-0 pointer-events-auto shadow-inner' 
+                                : 'opacity-0 scale-95 translate-x-4 pointer-events-none'
+                            }`}
+                          >
+                            <img
+                              src={imgUrl || null}
+                              alt={`Construction Progress Slide ${i + 1}`}
+                              className={`w-full h-full object-cover select-none ${
+                                isActive ? 'animate-ken-burns-zoom' : ''
+                              }`}
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
+
+                    {/* Gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/30 pointer-events-none" />
+
+                    {/* Lower Status Bar Overlay */}
+                    <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between text-xs bg-black/75 backdrop-blur-md p-2 rounded border border-emerald-900/30 z-10 font-sans">
+                      <span className="font-mono text-emerald-400 font-bold flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                        🛠 {language === 'bn' 
+                          ? `সাইট নির্মাণ কাজ ও গুনমান অগ্রগতি (${currentSlideConstruction + 1}/${parsedConstructionImages.length})` 
+                          : `Active Civil Construction Progress Log (${currentSlideConstruction + 1}/${parsedConstructionImages.length})`}
+                      </span>
+                      <span className="text-[10px] text-amber-500 uppercase font-mono font-bold tracking-widest px-2 py-0.5 rounded bg-amber-950/40 border border-[#D4AF37]/30 shrink-0">
+                        {language === 'bn' ? 'চলমান অগ্রগতি' : 'LIVE CONSTRUCTION'}
+                      </span>
+                    </div>
+
+                    {/* Next and Prev floating buttons to quickly cycle logs if multiple */}
+                    {parsedConstructionImages.length > 1 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setCurrentSlideConstruction(prev => (prev - 1 + parsedConstructionImages.length) % parsedConstructionImages.length)}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 z-10 h-7 w-7 rounded-full bg-black/70 hover:bg-emerald-950 border border-emerald-900/50 flex items-center justify-center text-slate-300 hover:text-white transition-all cursor-pointer"
+                        >
+                          ‹
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCurrentSlideConstruction(prev => (prev + 1) % parsedConstructionImages.length)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 z-10 h-7 w-7 rounded-full bg-black/70 hover:bg-emerald-950 border border-emerald-900/50 flex items-center justify-center text-slate-300 hover:text-white transition-all cursor-pointer"
+                        >
+                          ›
+                        </button>
+                      </>
+                    )}
+
+                    {/* Carousel Navigation Indicators (Only if more than 1 image) */}
+                    {parsedConstructionImages.length > 1 && (
+                      <div className="absolute top-4 right-4 flex gap-1.5 z-10">
+                        {parsedConstructionImages.map((_, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setCurrentSlideConstruction(i)}
+                            className={`w-5 h-1.5 rounded-full transition-all cursor-pointer ${
+                              i === currentSlideConstruction 
+                                ? 'bg-amber-400 w-8' 
+                                : 'bg-slate-500/60 hover:bg-slate-300'
+                            }`}
+                            title={`Slide ${i + 1}`}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Dynamic Progress Bar widget */}
@@ -3981,47 +4093,137 @@ export default function Login({ onRegisterClick }: LoginProps) {
             </div>
 
             <form onSubmit={saveConstructionCustomizations} className="space-y-4 text-xs font-sans">
-              <div className="space-y-2 bg-neutral-900/60 p-3.5 rounded-lg border border-emerald-900/35">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] uppercase font-mono font-bold text-slate-300 block">Construction Progress Photo (অগ্রগতির ছবি)</label>
-                  {valConstructionImg && (
+              <div className="space-y-4 bg-neutral-900/60 p-4 rounded-lg border border-emerald-900/35 font-sans">
+                <label className="text-[10px] uppercase font-mono font-bold text-[#D4AF37] block">
+                  {language === 'bn' ? 'নির্মাণ কাজের ছবি গ্যালারি (একাধিক ছবি আপলোড)' : 'Construction Log Photo Gallery (Add Multiple Images)'}
+                </label>
+
+                {/* CURRENT LIST GRID */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-1 bg-neutral-950/70 rounded-md border border-emerald-950/40">
+                  {valConstructionImages.length === 0 ? (
+                    <div className="col-span-full py-8 text-center text-[10px] text-slate-400 font-mono uppercase tracking-wider">
+                      {language === 'bn' ? 'কোনো ছবি আপলোড করা হয়নি' : 'No images uploaded yet'}
+                    </div>
+                  ) : (
+                    valConstructionImages.map((img, idx) => (
+                      <div key={idx} className="relative group aspect-video rounded overflow-hidden border border-slate-800 bg-neutral-900">
+                        <img 
+                          src={img} 
+                          alt={`Construction progress preview ${idx + 1}`} 
+                          className="w-full h-full object-cover" 
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="absolute top-1 left-1 bg-black/75 text-emerald-400 font-mono text-[9px] px-1 rounded font-bold">
+                          #{idx + 1}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setValConstructionImages(prev => prev.filter((_, i) => i !== idx));
+                          }}
+                          className="absolute top-1 right-1 bg-red-600 hover:bg-rose-700 text-white rounded p-1 shadow transition-all cursor-pointer opacity-90 hover:scale-105"
+                          title="Remove image"
+                        >
+                          <X className="h-3 w-3 text-white" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* ADD ACTIONS */}
+                <div className="space-y-2">
+                  {/* Local file upload */}
+                  <div className="flex items-center gap-3">
+                    <label htmlFor="construction-upload-input" className="flex items-center gap-1.5 px-3 py-2 rounded bg-emerald-750 hover:bg-emerald-700 text-white font-bold text-[10px] cursor-pointer shadow hover:shadow-emerald-900/30 transition-all select-none">
+                      <Upload className="h-3.5 w-3.5 text-amber-400" />
+                      <span>{language === 'bn' ? 'লোকাল ড্রাইভ থেকে ছবি যুক্ত করুন' : 'Attach from Local Computer'}</span>
+                    </label>
+                    <input
+                      id="construction-upload-input"
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const files = e.target.files;
+                        if (!files) return;
+                        
+                        const incomingLength = files.length;
+                        if (valConstructionImages.length + incomingLength > 12) {
+                          alert(language === 'bn' 
+                            ? `সর্বোচ্চ ১২টি ছবি গ্যালারিতে রাখা সম্ভব। অতিরিক্ত ছবি যোগ করা যাবে না।`
+                            : `Maximum of 12 images can be loaded in the gallery to ensure high performance.`
+                          );
+                        }
+
+                        Array.from(files).forEach(file => {
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            const img = new Image();
+                            img.onload = () => {
+                              const canvas = document.createElement('canvas');
+                              // Scale down to 750 max width/height for amazing speed, mobile optimization and tiny storage footprints
+                              const MAX_WIDTH = 750;
+                              const MAX_HEIGHT = 750;
+                              let width = img.width;
+                              let height = img.height;
+                              if (width > height) {
+                                  if (width > MAX_WIDTH) {
+                                    height *= MAX_WIDTH / width;
+                                    width = MAX_WIDTH;
+                                  }
+                              } else {
+                                  if (height > MAX_HEIGHT) {
+                                    width *= MAX_HEIGHT / height;
+                                    height = MAX_HEIGHT;
+                                  }
+                              }
+                              canvas.width = width;
+                              canvas.height = height;
+                              const ctx = canvas.getContext('2d');
+                              ctx?.drawImage(img, 0, 0, width, height);
+                              
+                              // Compress to quality 0.52 (~15KB per image, retaining brilliant structural clarity), preventing any Firestore 1MB limits
+                              const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.52);
+                              setValConstructionImages(prev => {
+                                if (prev.length >= 12) return prev;
+                                return [...prev, compressedDataUrl];
+                              });
+                            };
+                            img.src = event.target?.result as string;
+                          };
+                          reader.readAsDataURL(file as any);
+                        });
+                      }}
+                    />
+                    <span className="text-[9px] text-slate-500 font-mono font-bold">
+                      {language === 'bn' ? '✓ একাধিক ফাইল নির্বাচন করতে পারেন' : '✓ Bulk select supported'}
+                    </span>
+                  </div>
+
+                  {/* Add via Web URL */}
+                  <div className="flex gap-1.5 pt-1">
+                    <input
+                      type="text"
+                      placeholder={language === 'bn' ? 'অনলাইন ছবির লিঙ্ক পেস্ট করুন...' : 'Paste image web URL here...'}
+                      value={valConstructionNewUrl}
+                      onChange={(e) => setValConstructionNewUrl(e.target.value)}
+                      className="flex-grow rounded border border-emerald-950 bg-neutral-950 py-1.5 px-2.5 text-white text-xs focus:border-[#D4AF37] focus:outline-none placeholder-slate-700"
+                    />
                     <button
                       type="button"
                       onClick={() => {
-                        if (window.confirm(language === 'bn' ? 'আপনি কি নিশ্চিত অগ্রগতির ছবি ডিলিট বা রিসেট করতে চান?' : 'Are you sure you want to delete/reset this construction progress photo?')) {
-                          setValConstructionImg('');
+                        if (valConstructionNewUrl.trim()) {
+                          setValConstructionImages(prev => [...prev, valConstructionNewUrl.trim()]);
+                          setValConstructionNewUrl('');
                         }
                       }}
-                      className="text-[9px] text-red-500 hover:text-red-400 font-bold font-mono tracking-wider transition-colors cursor-pointer"
+                      className="px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold font-mono uppercase tracking-wider transition-all cursor-pointer select-none"
                     >
-                      [ {language === 'bn' ? 'ছবি ডিলিট / রিসেট' : 'Delete / Reset'} ]
+                      {language === 'bn' ? 'যুক্ত করুন' : 'Add'}
                     </button>
-                  )}
-                </div>
-                <input
-                  type="text"
-                  placeholder="Paste web URL or upload from local drive..."
-                  value={valConstructionImg || ''}
-                  onChange={(e) => setValConstructionImg(e.target.value)}
-                  className="block w-full rounded-md border border-emerald-950 bg-neutral-950 py-2 px-3 text-white focus:border-[#D4AF37] focus:outline-none placeholder-slate-700"
-                />
-                
-                {/* Local file uploader wrapper */}
-                <div className="flex items-center gap-3 pt-1">
-                  <label htmlFor="construction-upload-input" className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-900/80 hover:bg-emerald-800 text-white font-semibold text-[10px] cursor-pointer shadow hover:shadow-emerald-900/30 transition-all select-none">
-                    <Upload className="h-3.5 w-3.5 text-amber-400 font-bold" />
-                    <span>{language === 'bn' ? 'লোকাল ড্রাইভ থেকে ছবি আপলোড' : 'Upload from Local Drive'}</span>
-                  </label>
-                  <input
-                    id="construction-upload-input"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => handleImageUpload(e, setValConstructionImg)}
-                  />
-                  {valConstructionImg?.startsWith('data:image') && (
-                    <span className="text-[10px] text-emerald-400 font-mono">✓ Base64 Loaded</span>
-                  )}
+                  </div>
                 </div>
               </div>
 
