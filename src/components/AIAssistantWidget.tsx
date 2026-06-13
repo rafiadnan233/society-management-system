@@ -327,28 +327,67 @@ export default function AIAssistantWidget() {
               parts: [{ text: m.text }]
             }));
 
-          const ai = new GoogleGenAI({ apiKey });
-          const modelsToTry = ["gemini-3.5-flash", "gemini-flash-latest"];
           let clientResponseText = "";
           
-          for (const modelName of modelsToTry) {
-            try {
-              const res = await ai.models.generateContent({
-                model: modelName,
+          // Bulletproof direct HTTP fetch to Google's REST endpoint - avoids Node native imports / bundler compilation crashes in static builds
+          try {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+            const restResponse = await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
                 contents: sdkContents,
-                config: {
-                  systemInstruction: ASTHA_SYSTEM_INSTRUCTION + 
-                    `\n\n[Real-time Operational Context of Astha Twin Towers]:\n${systemContext}\n\nPlease use this live data from the Society Management System to answer the user's questions confidently and accurately. Refer to staff names, phone numbers, flats, committee designations, active notices, construction progress, or complaints whenever they ask. Default to Bangla unless specified otherwise.`,
+                systemInstruction: {
+                  parts: [{
+                    text: ASTHA_SYSTEM_INSTRUCTION + 
+                      `\n\n[Real-time Operational Context of Astha Twin Towers]:\n${systemContext}\n\nPlease use this live data from the Society Management System to answer the user's questions confidently and accurately. Refer to staff names, phone numbers, flats, committee designations, active notices, construction progress, or complaints whenever they ask. Default to Bangla unless specified otherwise.`
+                  }]
+                },
+                generationConfig: {
                   temperature: 0.7,
+                  maxOutputTokens: 1000
                 }
-              });
-              
-              if (res && res.text) {
-                clientResponseText = res.text;
-                break;
+              })
+            });
+
+            if (restResponse.ok) {
+              const restData = await restResponse.json();
+              if (restData.candidates && restData.candidates[0]?.content?.parts[0]?.text) {
+                clientResponseText = restData.candidates[0].content.parts[0].text;
               }
-            } catch (modelErr) {
-              console.warn(`[Client Gemini SDK Fallback] model ${modelName} failed:`, modelErr);
+            } else {
+              console.warn("Direct REST Call failed, trying SDK fallback...");
+            }
+          } catch (fetchErr) {
+            console.error("Direct browser REST API call fetch failed:", fetchErr);
+          }
+
+          // SDK fallback as secondary mechanism
+          if (!clientResponseText) {
+            const ai = new GoogleGenAI({ apiKey });
+            const modelsToTry = ["gemini-3.5-flash", "gemini-flash-latest"];
+            
+            for (const modelName of modelsToTry) {
+              try {
+                const res = await ai.models.generateContent({
+                  model: modelName,
+                  contents: sdkContents,
+                  config: {
+                    systemInstruction: ASTHA_SYSTEM_INSTRUCTION + 
+                      `\n\n[Real-time Operational Context of Astha Twin Towers]:\n${systemContext}\n\nPlease use this live data from the Society Management System to answer the user's questions confidently and accurately. Refer to staff names, phone numbers, flats, committee designations, active notices, construction progress, or complaints whenever they ask. Default to Bangla unless specified otherwise.`,
+                    temperature: 0.7,
+                  }
+                });
+                
+                if (res && res.text) {
+                  clientResponseText = res.text;
+                  break;
+                }
+              } catch (modelErr) {
+                console.warn(`[Client Gemini SDK Fallback] model ${modelName} failed:`, modelErr);
+              }
             }
           }
           
@@ -371,40 +410,177 @@ export default function AIAssistantWidget() {
       const getClientOfflineResponse = (query: string, lang: 'bn' | 'en'): string => {
         const q = query.toLowerCase();
         
+        let response = "";
+        
+        // Match payments / maintenance fees
+        if (q.includes("বিল") || q.includes("পেমেন্ট") || q.includes("টাকা") || q.includes("payment") || q.includes("bill") || q.includes("fee") || q.includes("maint") || q.includes("বিকাশ") || q.includes("নগদ") || q.includes("রকেট") || q.includes("বকেয়া")) {
+          const fee = config.bdtMaintenanceFee || 5000;
+          if (lang === 'bn') {
+            response = `### 💳 পেমেন্ট ও মেইনটেন্যান্স ফি তথ্য (সোসাইটি ডাটাবেজ):\n`;
+            response += `- **মাসিক ফি:** ৳${fee} BDT\n`;
+            response += `- **বিকাশ মার্চেন্ট:** \`${config.bKashMerchant || '০১৭১২৩৪৫৬৭৮'}\`\n`;
+            response += `- **নগদ মার্চেন্ট:** \`${config.nagadMerchant || '০১৬১২৩৪৫৬৭৮'}\`\n`;
+            response += `- **রকেট মার্চেন্ট:** \`${config.rocketMerchant || '০১৫১২৩৪৫৬৭৮-৯'}\`\n`;
+            response += `- **পরিশোধের সময়সীমা:** প্রতি মাসের ১০ তারিখের মধ্যে (১৫ তারিখের পর বিলম্ব ফি প্রযোজ্য হতে পারে)।\n\n`;
+            
+            if (payments && payments.length > 0) {
+              const totalPaid = payments.filter(p => p.status === 'Paid').length;
+              const totalPending = payments.filter(p => p.status === 'Pending').length;
+              response += `📊 **সোসাইটি পেমেন্ট ট্র্যাকিং:** সর্বমোট ${payments.length}টি ইনভয়েস ট্র্যাকিংয়ে রয়েছে (পরিশোধিত: ${totalPaid}টি, বকেয়া: ${totalPending}টি)\n`;
+              
+              if (currentUser && currentUser.flatNo) {
+                const myDues = payments.filter(p => p.flatNo === currentUser.flatNo && p.status === 'Pending');
+                if (myDues.length > 0) {
+                  response += `⚠️ **আপনার নোটিশ:** আপনার ফ্ল্যাট ${currentUser.flatNo}-এর মোট ${myDues.length}টি মাসের মেইনটেন্যান্স বিল এখনও অপেক্ষারত রয়েছে। অনুগ্রহ করে পরিশোধ করুন।\n`;
+                } else {
+                  response += `✅ **আপনার অবস্থা:** আপনার ফ্ল্যাট ${currentUser.flatNo}-এর সকল মেইনটেন্যান্স বিল পরিশোধিত রয়েছে। ধন্যবাদ!\n`;
+                }
+              }
+            }
+          } else {
+            response = `### 💳 Payments & Maintenance Info (Live Data):\n`;
+            response += `- **Monthly Fee:** BDT ${fee}\n`;
+            response += `- **bKash Merchant:** \`${config.bKashMerchant || '01712345678'}\`\n`;
+            response += `- **Nagad Merchant:** \`${config.nagadMerchant || '01612345678'}\`\n`;
+            response += `- **Rocket Merchant:** \`${config.rocketMerchant || '01512345678-9'}\`\n`;
+            response += `- **Payment Deadline:** By 10th of every month (late fees apply after 15th).\n\n`;
+            
+            if (payments && payments.length > 0) {
+              const totalPaid = payments.filter(p => p.status === 'Paid').length;
+              const totalPending = payments.filter(p => p.status === 'Pending').length;
+              response += `📊 **System Stats:** Total ${payments.length} invoices tracked (${totalPaid} Paid, ${totalPending} Pending/Unpaid).\n`;
+            }
+          }
+          return response;
+        }
+        
+        // Match Staff/Daroyan/Support Staff
+        if (q.includes("staff") || q.includes("guard") || q.includes("employee") || q.includes("দারোয়ার") || q.includes("গার্ড") || q.includes("স্টাফ") || q.includes("কর্মচারী") || q.includes("দারোয়ান") || q.includes("দারোয়ান") || q.includes("হেল্প") || q.includes("কন্টাক্ট") || q.includes("ফোন")) {
+          if (lang === 'bn') {
+            response = `### 📞 কর্তব্যরত সাপোর্ট স্টাফ ও যোগাযোগের তালিকা:\n`;
+            if (staff && staff.length > 0) {
+              staff.forEach((s, idx) => {
+                response += `${idx + 1}. **${s.name}** - ${s.role} | ফোন: \`${s.phone || 'N/A'}\` | অবস্থা: \`${s.status}\`\n`;
+              });
+            } else {
+              response += `ডাটাবেজে কোনো সাপোর্ট স্টাফ যুক্ত করা নেই।\n`;
+            }
+          } else {
+            response = `### 📞 Duty Support Staff Contact List:\n`;
+            if (staff && staff.length > 0) {
+              staff.forEach((s, idx) => {
+                response += `${idx + 1}. **${s.name}** - ${s.role} | Phone: \`${s.phone || 'N/A'}\` | Status: \`${s.status}\`\n`;
+              });
+            } else {
+              response += `No support staff registered in the database.\n`;
+            }
+          }
+          return response;
+        }
+
+        // Match Notices
+        if (q.includes("notice") || q.includes("খবর") || q.includes("নোটিশ") || q.includes("জরুরী") || q.includes("বিজ্ঞপ্তি") || q.includes("घোষণা") || q.includes("জরুরি")) {
+          if (lang === 'bn') {
+            response = `### 📢 সাম্প্রতিক নোটিশ বোর্ড:\n`;
+            if (notices && notices.length > 0) {
+              notices.slice(0, 5).forEach((n, idx) => {
+                const priorityBadge = n.priority === 'High' ? '🔴 জরুরী' : '🟢 সাধারণ';
+                response += `📍 **${idx + 1}. ${n.title}** (${n.date || 'তারিখ বিহীন'}) [${priorityBadge}]\n   - ${n.message}\n\n`;
+              });
+            } else {
+              response += `বর্তমানে কোনো সচল নোটিশ নেই।\n`;
+            }
+          } else {
+            response = `### 📢 Recent Active Board Notices:\n`;
+            if (notices && notices.length > 0) {
+              notices.slice(0, 5).forEach((n, idx) => {
+                const priorityBadge = n.priority === 'High' ? '🔴 HIGH' : '🟢 NORMAL';
+                response += `📍 **${idx + 1}. ${n.title}** (${n.date || 'No Date'}) [${priorityBadge}]\n   - ${n.message}\n\n`;
+              });
+            } else {
+              response += `No active notices found.\n`;
+            }
+          }
+          return response;
+        }
+
+        // Match Core Committee Info
+        if (q.includes("committee") || q.includes("সদস্য") || q.includes("কমিটি") || q.includes("সভাপতি") || q.includes("সেক্রেটারি") || q.includes("ম্যানেজার") || q.includes("member") || q.includes("প্রেসিডেন্ট")) {
+          if (lang === 'bn') {
+            response = `### 🏢 ম্যানেজমেন্ট কমিটি ও কর্মকর্তা তালিকা:\n`;
+            const committee = members ? members.filter(m => m.tag === 'Committee' || m.role === 'President' || m.role === 'Secretary') : [];
+            if (committee.length > 0) {
+              committee.forEach((c, idx) => {
+                response += `${idx + 1}. **${c.name}** - ${c.role || 'কমিটি মেম্বার'} | যোগাযোগের ফোন: \`${c.phone || 'N/A'}\`\n`;
+              });
+            } else {
+              response += `বর্তমানে কোনো নিবন্ধিত কমিটি মেম্বার পাওয়া যায়নি।\n`;
+            }
+          } else {
+            response = `### 🏢 Society Management Committee & Members List:\n`;
+            const committee = members ? members.filter(m => m.tag === 'Committee' || m.role === 'President' || m.role === 'Secretary') : [];
+            if (committee.length > 0) {
+              committee.forEach((c, idx) => {
+                response += `${idx + 1}. **${c.name}** - ${c.role || 'Committee Member'} | Phone: \`${c.phone || 'N/A'}\`\n`;
+              });
+            } else {
+              response += `No registered committee members found.\n`;
+            }
+          }
+          return response;
+        }
+
+        // Match Complaints
+        if (q.includes("complaint") || q.includes("অভিযোগ") || q.includes("নষ্ট") || q.includes("প্লাম্বিং") || q.includes("সমস্যা") || q.includes("লিকেজ") || q.includes("কমপ্লেন")) {
+          if (lang === 'bn') {
+            response = `### 🛠️ অভিযোগ ও সমাধান বোর্ড:\n`;
+            if (complaints && complaints.length > 0) {
+              const pending = complaints.filter(c => c.status === 'Pending').length;
+              const investigating = complaints.filter(c => c.status === 'Investigating').length;
+              const resolved = complaints.filter(c => c.status === 'Resolved').length;
+              response += `📊 **পরিসংখ্যান:** মোট অভিযোগ নথিভুক্ত: ${complaints.length}টি (অপেক্ষমান: ${pending}, তদন্তাধীন: ${investigating}, সমাধানকৃত: ${resolved})\n\n`;
+              response += `🔍 **সাম্প্রতিক পাবলিক অভিযোগের তালিকা:**\n`;
+              complaints.slice(0, 5).forEach((c, idx) => {
+                const statusIco = c.status === 'Resolved' ? '✅ সমাধানকৃত' : (c.status === 'Investigating' ? '⚠️ তদন্তাধীন' : '⏳ পেন্ডিং');
+                response += `${idx + 1}. **${c.title}** (${c.category}) - ফ্ল্যাট ${c.flatNo} [${statusIco}]\n`;
+              });
+            } else {
+              response += `কোনো অভিযোগ নথিভুক্ত নেই। আপনার কোনো সমস্যা থাকলে আপনার ড্যাশবোর্ড থেকে অভিযোগ দায়ের করতে পারেন।\n`;
+            }
+          } else {
+            response = `### 🛠️ Registered Complaints & Resolution Progress:\n`;
+            if (complaints && complaints.length > 0) {
+              const pending = complaints.filter(c => c.status === 'Pending').length;
+              const investigating = complaints.filter(c => c.status === 'Investigating').length;
+              const resolved = complaints.filter(c => c.status === 'Resolved').length;
+              response += `📊 **Summary:** Total: ${complaints.length} (Pending: ${pending}, Investigating: ${investigating}, Resolved: ${resolved})\n\n`;
+            } else {
+              response += `No active complaints registered in the database.\n`;
+            }
+          }
+          return response;
+        }
+
+        // Match Construction Progress / Building / Info
+        if (q.includes("construction") || q.includes("building") || q.includes("progress") || q.includes(" can") || q.includes("অগ্রগতি") || q.includes("নির্মাণ") || q.includes("কাজ") || q.includes("ফ্ল্যাট") || q.includes("বিল্ডিং") || q.includes("প্রগ্রেস")) {
+          const percent = config.constructionPercent !== undefined ? config.constructionPercent : 85;
+          if (lang === 'bn') {
+            response = `### 🏗️ নির্মাণ কাজের সর্বশেষ অগ্রগতি আপডেট:\n`;
+            response += `- **অগ্রগতি:** ${percent}% সম্পন্ন\n`;
+            response += `- **আপডেট বর্ণনা:** ${config.constructionDescBn || 'কোনো বাংলা বর্ণনা দেওয়া নেই।'}\n`;
+          } else {
+            response = `### 🏗️ Construction & Completion Updates:\n`;
+            response += `- **Completion Progress:** ${percent}% Completed\n`;
+            response += `- **Status Description:** ${config.constructionDescEn || 'No status description added.'}\n`;
+          }
+          return response;
+        }
+
+        // Defalut local match fallback response (looks very neat!)
         if (lang === 'bn') {
-          if (q.includes("বিল") || q.includes("পেমেন্ট") || q.includes("টাকা") || q.includes("payment") || q.includes("bill") || q.includes("fee") || q.includes("maint")) {
-            return `**আস্থা টুইন টাওয়ার পেমেন্ট গাইডলাইন (অফলাইন মোড):**\n\n১. **শেষ সময়:** প্রতি মাসের ১০ তারিখের মধ্যে মাসিক মেইনটেইন্যান্স ফি পরিশোধ করতে হবে।\n২. **বিলম্ব ফি:** ১৫ তারিখ পার হয়ে গেলে অতিরিক্ত বিলম্ব ফি যুক্ত হতে পারে।\n৩. **পরিশোধ পদ্ধতি:** ড্যাশবোর্ডের "Payments" থেকে bKash, Nagad অথবা সরাসরি ক্যাশ পেমেন্ট করতে পারেন।`;
-          }
-          if (q.includes("quiet") || q.includes("ঘুম") || q.includes("শান্ত") || q.includes("শব্দ") || q.includes("night") || q.includes("silent") || q.includes("রাত")) {
-            return `**আস্থা টুইন টাওয়ার শব্দহীন প্রবিধান (Quiet Hours):**\n\n- **সময়সূচী:** প্রতিদিন রাত ১০:০০ টা থেকে সকাল ০৬:০০ টা পর্যন্ত শান্ত ঘন্টা বলবৎ থাকে।\n- এই ক্ষণে উচ্চ শব্দ সৃষ্টিকারী কাজ বা জোরে উৎসব করা বারণ যাতে বৃদ্ধ বা শিশুদের ঘুমের ব্যাঘাত না ঘটে।`;
-          }
-          if (q.includes("visitor") || q.includes("guest") || q.includes("ভিজিটর") || q.includes("মেহমান") || q.includes("গেস্ট") || q.includes("passes")) {
-            return `**ভিজিটর এন্ট্রি পাস গাইড (অফলাইন মোড):**\n\n১. নিরাপত্তার স্বার্থে বহিরাগত মেহমানদের মেইন গেটে রেজিষ্ট্রেশন করতে হবে।\n২. বাসিন্দারা Resident ড্যাশবোর্ডে গিয়ে পূর্বেই **Visitor Entry Request** টিকিট জেনারেট করে গেস্টদের নির্বিঘ্ন প্রবেশ নিশ্চিত করতে পারেন।`;
-          }
-          if (q.includes("complaint") || q.includes("অভিযোগ") || q.includes("নষ্ট") || q.includes("ত্রুটি") || q.includes("পানির") || q.includes("লিঙ্ক")) {
-            return `**অভিযোগ ও সমাধান সেবা (অফলাইন মোড):**\n\n- পানির লিকেজ বা প্লাম্বিং সমস্যার জন্য আপনি বাসিন্দা প্যানেল থেকে **Complaint Management** টিকিট সাবমিট করতে পারেন। আমাদের নিয়োজিত সেবা টেকনিশিয়ান ১২ ঘণ্টার মধ্যে এর সমাধান করবে।`;
-          }
-          if (q.includes("location") || q.includes("ঠিকানা") || q.includes("কোথায়") || q.includes("কুমিল্লা") || q.includes("cumilla") || q.includes("address")) {
-            return `**আস্থা টুইন টাওয়ারের অবস্থান:**\n\n- **ঠিকানা:** খেতাসার, কুমিল্লা, বাংলাদেশ (Khetasar, Cumilla, Bangladesh)।`;
-          }
-          return `আস্থা টুইন টাওয়ার এআই সহযোগী (অফলাইন মোড):\nসার্ভারে উচ্চ ট্রাফিক বা নেট সংযোগের বিঘ্নতার কারণে আমি আপনাকে সাহায্য করছি অফলাইন প্রক্সি থেকে!\n\n**নিম্নলিখিত বিষয়ে যেকোনো তথ্য জানতে লিখুন:**\n- মেইনটেইন্যান্স পেমেন্ট এবং বিলের নিয়মনীতি\n- কুয়ায়েট আওয়ার্স বা ঘুমের সময়সূচী\n- নতুন গেস্ট এন্ট্রি পাস ও মেইন গেট রেজিষ্ট্রেশন\n- যেকোনো অভিযোগ সাবমিট ও ট্র্যাক ট্র্যাকিং`;
+          return `আস্থা টুইন টাওয়ার এআই প্রক্সি সিস্টেম (লোকাল অফলাইন মোড):\n\nসার্ভার ডোমেইন ছাড়া অথবা গিটহাব পেজে ব্যবহারের কারণে আমি আপনাকে লাইভ ডাটাবেজ থেকে সরাসরি তথ্য খুঁজে দিচ্ছি!\n\n**নিম্নলিখিত বিষয়ে জিজ্ঞেস করুন (আমি সরাসরি লাইভ ডাটা দেখাব):**\n১. **"স্টাফ কন্টাক্ট"** বা গার্ড/দারোয়ান ফোনের তালিকা\n২. **"জরুরী নোটিশ"** সমূহ এবং সাম্প্রতিক ঘোষণা\n৩. **"মেইলটেইন্যান্স ফি"** বা পেমেন্ট মারচেন্ট নম্বর\n৪. **"সোসাইটি কমিটি"** মেম্বারদের নাম ও পদবী\n৫. **"অভিযোগ"** তালিকা ও সাম্প্রতিক সেবা টিকিটসমূহ\n৬. **"নির্মাণ কাজ"** এর সর্বশেষ অগ্রগতি এবং পারসেন্টেজ`;
         } else {
-          if (q.includes("bill") || q.includes("pay") || q.includes("maint") || q.includes("fee") || q.includes("money")) {
-            return `**Astha Maintenance Billing Guidelines (Offline Mode):**\n\n1. **Deadline:** Must pay monthly maintenance fees by the 10th of each month.\n2. **Late Fee:** Late fees apply after the 15th of the month.\n3. **Method:** Support bKash, Nagad, or Cash payments via the "Payments" panel.`;
-          }
-          if (q.includes("quiet") || q.includes("night") || q.includes("sound") || q.includes("silent") || q.includes("sleep")) {
-            return `**Astha Twin Towers Quiet Hours Policy (Offline Mode):**\n\n- **Hours:** Observed daily from 10:00 PM to 6:00 AM.\n- No high-decibel music, sounds, or heavy construction are permitted during this timeframe.`;
-          }
-          if (q.includes("visitor") || q.includes("guest") || q.includes("gate") || q.includes("pass")) {
-            return `**Visitor Entry & Pass Registry (Offline Mode):**\n\n1. Security registration is mandatory at the entrance for all external guests.\n2. Residents can pre-approve visitors through the dashboard's **Visitor Entry Request** panel.`;
-          }
-          if (q.includes("complaint") || q.includes("leak") || q.includes("plumb") || q.includes("issue")) {
-            return `**Complaint & Ticket Board (Offline Mode):**\n\n- Submit plumbing, electrical, or generic helper complaints through your resident panel. A maintenance helper will inspect within 12 hours.`;
-          }
-          if (q.includes("location") || q.includes("address") || q.includes("where") || q.includes("cumilla")) {
-            return `**Location of Astha Twin Towers:**\n\n- **Address:** Khetasar, Cumilla, Bangladesh.`;
-          }
-          return `Astha Twin Tower Assistant (Offline Local Mode):\nDue to server downtime or connectivity delays, I am assisting you from the local database.\n\n**Ask me about:**\n- Monthly maintenance billing & payments\n- Quiet hours & night regulations\n- Resident complaint ticketing\n- Visitor passes & security`;
+          return `Astha Twin Tower Local Responder (Offline Live Mode):\n\nI am dynamically retrieving live local files and configs since we are on static host/GitHub Pages.\n\n**Ask me about:**\n1. **"staff contacts"** or duty list\n2. **"latest notices"** published on the board\n3. **"maintenance bills"** or payment numbers\n4. **"society committee"** profiles\n5. **"complaints list"** status\n6. **"construction updates"** progress details`;
         }
       };
 
