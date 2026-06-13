@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSociety } from '../context/SocietyContext';
-import { MessageSquare, X, Send, Sparkles, User, HelpCircle, Loader2, RefreshCw, Volume2, Building, ArrowRight, Smile, Hand, BookOpen, ChevronDown, ChevronUp, ChevronRight, CreditCard, ShieldCheck, AlertCircle, Clock } from 'lucide-react';
+import { MessageSquare, X, Send, Sparkles, User, HelpCircle, Loader2, RefreshCw, Volume2, Building, ArrowRight, Smile, Hand, BookOpen, ChevronDown, ChevronUp, ChevronRight, CreditCard, ShieldCheck, AlertCircle, Clock, Key } from 'lucide-react';
+import { GoogleGenAI } from '@google/genai';
 
 interface ChatMessage {
   id: string;
@@ -8,6 +9,25 @@ interface ChatMessage {
   text: string;
   timestamp: string;
 }
+
+// System instruction representing the Astha Twin Tower AI Assistant for Client Side Direct Fallback
+const ASTHA_SYSTEM_INSTRUCTION = `You are Astha Twin Tower AI Assistant.
+Always answer in Bengali (Bangla) default unless the user asks to use English.
+Help residents, visitors, staff, and administrators.
+Provide accurate information about society services at Astha Twin Tower (located in Khetasar, Cumilla, Bangladesh).
+Keep responses context-aware, polite, warm, concise, and professional.
+
+Key facts about Astha Twin Tower:
+1. Contact & Location: Khetasar, Cumilla, Bangladesh.
+2. Apartment Management: There are multiple flats across tower blocks.
+3. Maintenance Bills: The monthly maintenance fee should be paid via local mobile wallets (bKash/Nagad) or Cash by the 10th of every month. Late fees may apply after the 15th of the month.
+4. Security & Visitors: All visitors/guests, vehicles, and delivery partners must register at the reception/gate. Residents can submit pre-arrival visitor entry request passes online.
+5. Voice Navigation: Astha Twin Tower system has a state-of-the-art Voice Navigator supporting voice commands (e.g. 'take me to the dashboard', 'show me payments') to help quick navigation.
+6. Complaints Desk: If there are complaints (leakage, plumbing, security, common lights, garbage), residents can file them online. The administration processes them immediately.
+7. Quiet Hours: 10:00 PM to 6:00 AM (to ensure comfort for children and elderly residents).
+8. Common Areas: Community room, play area, and rooftop gardens must be reserved ahead of events with the society committee.
+
+Format your responses with neat markdown lists or bold markers where relevant. Always keep instructions short, helpful, and friendly.`;
 
 const FAQ_CATEGORIES = [
   {
@@ -104,6 +124,8 @@ export default function AIAssistantWidget() {
   const [activeTab, setActiveTab] = useState<'help' | 'chat'>('help');
   const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>('payments');
   const [expandedFaqIdx, setExpandedFaqIdx] = useState<number | null>(null);
+  const [showConfig, setShowConfig] = useState(false);
+  const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('ASTHA_USER_GEMINI_KEY') || '');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Default welcome message based on selected language (bn/en)
@@ -193,9 +215,59 @@ export default function AIAssistantWidget() {
 
       setMessages(prev => [...prev, botMessage]);
     } catch (err) {
-      console.warn('Error generating response from backend, switching to high-fidelity client assistant:', err);
+      console.warn('Error generating response from backend, checking for client-side Gemini options:', err);
       
-      // High-fidelity local offline assistant client-side responder
+      const apiKey = userApiKey || import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY;
+      if (apiKey && apiKey !== "MOCK_OR_MISSING_KEY") {
+        try {
+          // Construct chat history format mapping for @google/genai SDK
+          const sdkContents = updatedMessages
+            .filter(m => m.id !== 'welcome-msg')
+            .map(m => ({
+              role: m.role === 'user' ? 'user' : 'model',
+              parts: [{ text: m.text }]
+            }));
+
+          const ai = new GoogleGenAI({ apiKey });
+          const modelsToTry = ["gemini-3.5-flash", "gemini-flash-latest"];
+          let clientResponseText = "";
+          
+          for (const modelName of modelsToTry) {
+            try {
+              const res = await ai.models.generateContent({
+                model: modelName,
+                contents: sdkContents,
+                config: {
+                  systemInstruction: ASTHA_SYSTEM_INSTRUCTION,
+                  temperature: 0.7,
+                }
+              });
+              
+              if (res && res.text) {
+                clientResponseText = res.text;
+                break;
+              }
+            } catch (modelErr) {
+              console.warn(`[Client Gemini SDK Fallback] model ${modelName} failed:`, modelErr);
+            }
+          }
+          
+          if (clientResponseText) {
+            const botMessage: ChatMessage = {
+              id: `bot-client-${Date.now()}`,
+              role: 'model',
+              text: clientResponseText,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            };
+            setMessages(prev => [...prev, botMessage]);
+            return; // Successfully resolved client-side direct real-time response!
+          }
+        } catch (directErr) {
+          console.error("Direct client-side Gemini run encountered fatal error:", directErr);
+        }
+      }
+
+      // High-fidelity local offline assistant client-side responder if direct client fails or has no key
       const getClientOfflineResponse = (query: string, lang: 'bn' | 'en'): string => {
         const q = query.toLowerCase();
         
@@ -302,7 +374,15 @@ export default function AIAssistantWidget() {
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 font-mono">
+              <button 
+                type="button"
+                onClick={() => setShowConfig(!showConfig)}
+                title={language === 'bn' ? 'এপিআই কী কনফিগারেশন' : 'API Key Config'}
+                className={`p-1.5 rounded-lg transition-all cursor-pointer ${showConfig ? 'text-amber-400 bg-neutral-900 border border-emerald-900' : 'text-slate-400 hover:text-[#D4AF37] hover:bg-neutral-900'}`}
+              >
+                <Key className="h-4 w-4" />
+              </button>
               <button 
                 type="button"
                 onClick={resetChat}
@@ -326,6 +406,59 @@ export default function AIAssistantWidget() {
             <Building className="h-3 w-3 shrink-0" />
             <span>Khetasar, Cumilla, BD — Powered by Gemini AI</span>
           </div>
+
+          {/* API Key Configuration Dropdown */}
+          {showConfig && (
+            <div className="bg-neutral-900/95 border-b border-emerald-950 p-3.5 space-y-2.5 animate-slide-down">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#D4AF37] font-mono flex items-center gap-1">
+                  <Key className="h-3.5 w-3.5 text-amber-500 animate-pulse" />
+                  <span>{language === 'bn' ? 'জেমিনি কী কনফিগারেশন (GitHub Pages)' : 'Client Gemini API Key Config'}</span>
+                </span>
+                <button 
+                  onClick={() => setShowConfig(false)}
+                  className="text-slate-400 hover:text-red-400 text-[10px]"
+                >
+                  {language === 'bn' ? 'বন্ধ করুন' : 'Close'}
+                </button>
+              </div>
+              <p className="text-[9.5px] text-slate-400 leading-normal font-sans">
+                {language === 'bn' 
+                  ? 'GitHub Pages-এর মতো স্ট্যাটিক হোস্টিং-এ সরাসরি রিয়েল-টাইম জেমিনি এআই কাজ করার জন্য নিচে আপনার নিজস্ব Gemini API Key পেস্ট করুন। এটি আপনার ব্রাউজারের লোকাল স্টোরেজে সম্পূর্ণ নিরাপদে রাখা হবে।' 
+                  : 'To enable real-time replies on static hostings like GitHub Pages, paste your temporary Gemini API key below. It remains secure in your browser localStorage.'}
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={userApiKey}
+                  onChange={(e) => {
+                    const val = e.target.value.trim();
+                    setUserApiKey(val);
+                    localStorage.setItem('ASTHA_USER_GEMINI_KEY', val);
+                  }}
+                  placeholder="AIzaSy..."
+                  className="flex-1 px-2.5 py-1.5 text-[10px] bg-neutral-950 border border-emerald-950 focus:border-emerald-500 focus:outline-none rounded-lg text-slate-100 font-mono"
+                />
+                {userApiKey && (
+                  <button
+                    onClick={() => {
+                      setUserApiKey('');
+                      localStorage.removeItem('ASTHA_USER_GEMINI_KEY');
+                    }}
+                    className="px-2.5 py-1.5 text-[9.5px] bg-red-950/40 hover:bg-red-950/80 border border-red-900/50 text-red-400 rounded-lg font-mono transition-all"
+                  >
+                    {language === 'bn' ? 'মুছুন' : 'Clear'}
+                  </button>
+                )}
+              </div>
+              <div className="text-[8.5px] text-slate-500 leading-normal bg-neutral-950/40 p-2 rounded-lg border border-emerald-950/30 font-sans">
+                💡 <span className="font-bold">{language === 'bn' ? 'বিকল্প পথ:' : 'Alternative option:'}</span>{' '}
+                {language === 'bn' 
+                  ? 'আপনার রিপোসিটরির build ফোল্ডারে VITE_GEMINI_API_KEY এনভায়রনমেন্ট ভ্যারিয়েবল ব্যবহার করে এটি সেট করতে পারেন।' 
+                  : 'You can also set the VITE_GEMINI_API_KEY environment variable during your GitHub build actions.'}
+              </div>
+            </div>
+          )}
 
           {/* Quick Help Menu vs AI Chat Tab Controller Bar */}
           <div className="flex bg-neutral-900/95 border-b border-emerald-950/70 p-1 gap-1">
