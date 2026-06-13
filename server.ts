@@ -54,7 +54,7 @@ app.get("/api/health", (req, res) => {
 // Post Gemini API endpoint
 app.post("/api/gemini/generate", async (req, res) => {
   try {
-    const { prompt, history } = req.body;
+    const { prompt, history, systemContext } = req.body;
     if (!prompt) {
       return res.status(400).json({ error: "Missing 'prompt' field in post body." });
     }
@@ -93,7 +93,8 @@ app.post("/api/gemini/generate", async (req, res) => {
               model: modelName,
               contents: contents,
               config: {
-                systemInstruction: ASTHA_SYSTEM_INSTRUCTION,
+                systemInstruction: ASTHA_SYSTEM_INSTRUCTION + 
+                  (systemContext ? `\n\n[Real-time Operational Context of Astha Twin Towers]:\n${systemContext}\n\nPlease use this live data from the Society Management System to answer the user's questions confidently and accurately. Refer to staff names, phone numbers, flats, committee designations, active notices, construction progress, or complaints whenever they ask. Default to Bangla unless specified otherwise.` : ""),
                 temperature: 0.7,
                 maxOutputTokens: 1000,
               }

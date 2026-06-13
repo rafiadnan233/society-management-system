@@ -115,7 +115,20 @@ const FAQ_CATEGORIES = [
 ];
 
 export default function AIAssistantWidget() {
-  const { language } = useSociety();
+  const { 
+    language,
+    currentUser,
+    config,
+    members,
+    flats,
+    payments,
+    expenses,
+    notices,
+    visitors,
+    complaints,
+    staff,
+    constructionPhases
+  } = useSociety();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -127,6 +140,89 @@ export default function AIAssistantWidget() {
   const [showConfig, setShowConfig] = useState(false);
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('ASTHA_USER_GEMINI_KEY') || '');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Generate real-time system context to feed to Gemini AI
+  const generateSystemContext = () => {
+    let context = ``;
+    
+    // 1. Current Session Context
+    if (currentUser) {
+      context += `[User Session]: Logged in user is ${currentUser.name} (${currentUser.role}). `;
+      if (currentUser.role === 'Resident') {
+        context += `Flat No: ${currentUser.flatNo || 'N/A'}. `;
+      }
+      context += `\n`;
+    } else {
+      context += `[User Session]: Public/Anonymous guest visitor.\n`;
+    }
+
+    // 2. Society Config & Financial Specs
+    if (config) {
+      context += `[Society Setup]: Name: ${config.name || 'Astha Twin Towers'}, Address: ${config.address || 'Khetasar, Cumilla'}, Email: ${config.email || 'info@astha.com'}, Phone: ${config.contactNo || ''}. `;
+      context += `Monthly Maintenance Fee: BDT ${config.bdtMaintenanceFee || 5000}. Payment Channels: bKash (${config.bKashMerchant || '01712345678'}), Nagad (${config.nagadMerchant || '01612345678'}), Rocket (${config.rocketMerchant || '01512345678'}).\n`;
+
+      // 3. Construction Highlights
+      const percent = config.constructionPercent !== undefined ? config.constructionPercent : 85;
+      context += `[Construction Phase]: Progress: ${percent}% Completed. Description (EN): "${config.constructionDescEn || ''}". Description (BN): "${config.constructionDescBn || ''}".\n`;
+    }
+
+    // 4. Flats Statistics
+    if (flats && flats.length > 0) {
+      const occupied = flats.filter(f => f.status === 'Occupied').length;
+      const vacant = flats.filter(f => f.status === 'Vacant').length;
+      context += `[Flats Summary]: Total Flats: ${flats.length} (Occupied: ${occupied}, Vacant: ${vacant}).\n`;
+    }
+
+    // 5. Active Notices
+    if (notices && notices.length > 0) {
+      context += `[Active Notices]:\n`;
+      notices.slice(0, 5).forEach((n, idx) => {
+        context += `  - Notice #${idx + 1}: Date: ${n.date || 'unknown'}, Priority: ${n.priority || 'Normal'}, Title: "${n.title || ''}", Content: "${n.message || ''}"\n`;
+      });
+    }
+
+    // 6. Support Staff / Contacts
+    if (staff && staff.length > 0) {
+      context += `[Duty Support Staff List]:\n`;
+      staff.forEach((s) => {
+        context += `  - Name: ${s.name} | Role: ${s.role} | Phone: ${s.phone || 'N/A'} | Status: ${s.status || 'Active'}\n`;
+      });
+    }
+
+    // 7. Core Committee / Members Info
+    if (members && members.length > 0) {
+      const committee = members.filter(m => m.tag === 'Committee' || m.role === 'President' || m.role === 'Secretary');
+      if (committee.length > 0) {
+        context += `[Committee Members]:\n`;
+        committee.forEach(c => {
+          context += `  - Name: ${c.name} | Designation: ${c.role || 'Member'} | Phone: ${c.phone || 'N/A'}\n`;
+        });
+      }
+      context += `[Total Registered Resident Members]: ${members.length}\n`;
+    }
+
+    // 8. Complaints Tracking
+    if (complaints && complaints.length > 0) {
+      const pending = complaints.filter(c => c.status === 'Pending').length;
+      const investigating = complaints.filter(c => c.status === 'Investigating').length;
+      const resolved = complaints.filter(c => c.status === 'Resolved').length;
+      context += `[Complaints Status]: Total filed issues: ${complaints.length} (Pending: ${pending}, Investigating: ${investigating}, Resolved: ${resolved}).\n`;
+      
+      context += `[Recent Public Complaints]:\n`;
+      complaints.slice(0, 5).forEach((c, idx) => {
+        context += `  - Complaint #${idx+1}: Category: ${c.category}, Title: "${c.title}", Status: ${c.status}, Filed Date: ${c.date || ''}. By: Flat ${c.flatNo}\n`;
+      });
+    }
+
+    // 9. Payment Logs Overview
+    if (payments && payments.length > 0) {
+      const totalPaid = payments.filter(p => p.status === 'Paid').length;
+      const totalPending = payments.filter(p => p.status === 'Pending').length;
+      context += `[Maintenance Payments Overview]: Total invoices tracked: ${payments.length} (${totalPaid} Paid, ${totalPending} Pending/Unpaid).\n`;
+    }
+
+    return context;
+  };
 
   // Default welcome message based on selected language (bn/en)
   const defaultWelcomeMessage = (): ChatMessage => ({
@@ -179,6 +275,8 @@ export default function AIAssistantWidget() {
     setMessages(updatedMessages);
     setLoading(true);
 
+    const systemContext = generateSystemContext();
+
     try {
       // Map history format for server endpoint proxy (excludes welcome message to prevent noise)
       const chatHistory = updatedMessages
@@ -196,7 +294,8 @@ export default function AIAssistantWidget() {
         },
         body: JSON.stringify({
           prompt: textToSend,
-          history: chatHistory.slice(-6) // Only send recent 6 messages to keep context efficient
+          history: chatHistory.slice(-6), // Only send recent 6 messages to keep context efficient
+          systemContext: systemContext
         }),
       });
 
@@ -238,7 +337,8 @@ export default function AIAssistantWidget() {
                 model: modelName,
                 contents: sdkContents,
                 config: {
-                  systemInstruction: ASTHA_SYSTEM_INSTRUCTION,
+                  systemInstruction: ASTHA_SYSTEM_INSTRUCTION + 
+                    `\n\n[Real-time Operational Context of Astha Twin Towers]:\n${systemContext}\n\nPlease use this live data from the Society Management System to answer the user's questions confidently and accurately. Refer to staff names, phone numbers, flats, committee designations, active notices, construction progress, or complaints whenever they ask. Default to Bangla unless specified otherwise.`,
                   temperature: 0.7,
                 }
               });
