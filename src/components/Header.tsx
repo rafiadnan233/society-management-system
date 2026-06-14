@@ -42,6 +42,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
     flats,
     members,
     complaints,
+    activeTab,
     setActiveTab,
     notices,
     logout
@@ -255,6 +256,45 @@ export default function Header({ onMenuToggle }: HeaderProps) {
               </div>
             )}
           </div>
+
+          {/* Admin NVR Terminal Toggle Switch */}
+          {currentUser?.role === 'Admin' && (
+            <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-lg border border-slate-200 font-sans shrink-0">
+              <span className={`text-[10px] font-bold tracking-wider uppercase pl-1.5 transition-colors select-none ${activeTab === 'nvr-terminal' ? 'text-rose-650' : 'text-slate-650'}`}>
+                {activeTab === 'nvr-terminal' ? (language === 'bn' ? 'মনিটর লাইভ' : 'MONITOR LIVE') : (language === 'bn' ? 'NVR টার্মিনাল' : 'NVR TERMINAL')}
+              </span>
+              <button
+                type="button"
+                id="nvr-toggle-switch"
+                onClick={() => {
+                  if (activeTab === 'nvr-terminal') {
+                    setActiveTab('dashboard');
+                  } else {
+                    // Seed CCTV localstorage session for seamless iframe bypass
+                    if (currentUser) {
+                      localStorage.setItem('cctv_authenticated_user', JSON.stringify({
+                        email: currentUser.email || 'admin@astha.com',
+                        name: currentUser.name || 'System Admin',
+                        role: 'Admin',
+                        uid: currentUser.uid || 'admin'
+                      }));
+                    }
+                    setActiveTab('nvr-terminal');
+                  }
+                }}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  activeTab === 'nvr-terminal' ? 'bg-red-650' : 'bg-slate-350'
+                }`}
+                title={language === 'bn' ? 'ম্যানেজমেন্ট সিস্টেম এবং NVR টার্মিনাল পরিবর্তন করুন' : 'Toggle between Management System and NVR Terminal'}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                    activeTab === 'nvr-terminal' ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          )}
 
           {/* Language Toggle */}
           <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 hidden sm:flex font-sans">

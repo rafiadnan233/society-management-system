@@ -51,6 +51,9 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", mode: process.env.NODE_ENV || "development" });
 });
 
+// Static mount for secure CCTV static assets & pages
+app.use("/cctv", express.static(path.join(process.cwd(), "cctv-static")));
+
 // Post Gemini API endpoint
 app.post("/api/gemini/generate", async (req, res) => {
   try {

@@ -85,6 +85,17 @@ function AppContent() {
         return <BackupRestore />;
       case 'project-videos':
         return <ProjectVideos />;
+      case 'nvr-terminal':
+        return (
+          <div className="w-full h-full bg-zinc-950 overflow-hidden relative">
+            <iframe 
+              src="/cctv/pages/camera.html" 
+              className="absolute inset-0 w-full h-full border-0 bg-zinc-950"
+              title="Astha CCTV NVR Console"
+              referrerPolicy="no-referrer"
+            />
+          </div>
+        );
       default:
         return <Dashboard />;
     }
@@ -99,10 +110,11 @@ function AppContent() {
       mainContent = <Login onRegisterClick={() => setShowRegister(true)} />;
     }
   } else {
+    const isNvr = activeTab === 'nvr-terminal';
     mainContent = (
       <div className="flex h-screen bg-[#f8fafc] text-slate-800 overflow-hidden font-sans print:h-auto print:overflow-visible print:block w-full">
         {/* Primary Sidebar Layout Panel */}
-        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        {!isNvr && <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
 
         {/* Main Right Area wrapper */}
         <div className="flex-1 flex flex-col h-full overflow-hidden relative print:h-auto print:overflow-visible print:block">
@@ -110,7 +122,7 @@ function AppContent() {
           <Header onMenuToggle={() => setSidebarOpen(true)} />
 
           {/* Content Viewer viewport */}
-          <main id="main-content-area" className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#f8fafc] relative print:overflow-visible print:h-auto print:p-0 border-none print:shadow-none animate-fade-in">
+          <main id="main-content-area" className={`flex-1 ${isNvr ? 'p-0 bg-zinc-950 overflow-hidden' : 'overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#f8fafc]'} relative print:overflow-visible print:h-auto print:p-0 border-none print:shadow-none animate-fade-in`}>
             {renderTabContent()}
           </main>
         </div>
